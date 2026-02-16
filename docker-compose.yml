@@ -1,0 +1,49 @@
+services:
+  nginx:
+    build: ./nginx
+    cap_add: [ "NET_ADMIN" ]
+    networks:
+      wan_b:
+        ipv4_address: 10.20.0.10
+    # Keep nginx isolated and reproducible
+    cpuset: "2-3"
+    volumes:
+      - ./qlog:/var/log/nginx/qlog
+      - ./server.crt:/etc/nginx/ssl/server.crt:ro
+      - ./server.key:/etc/nginx/ssl/server.key:ro
+
+  client:
+    build: ./client
+    cap_add: [ "NET_ADMIN" ]
+    networks:
+      wan_a:
+        ipv4_address: 10.10.0.10
+    cpuset: "0-1"
+    depends_on: [netem]
+    volumes:
+      # export CA_PATH=$(mkcert -CAROOT)
+      - ${CA_PATH}/rootCA.pem:/usr/local/share/ca-certificates/rootCA.crt:ro
+
+  netem:
+    build: ./netem-router
+    cap_add: [ "NET_ADMIN" ]
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.rp_filter=0
+      - net.ipv4.conf.default.rp_filter=0
+    networks:
+      wan_a:
+        ipv4_address: 10.10.0.100
+      wan_b:
+        ipv4_address: 10.20.0.100
+    cpuset: "4"
+
+networks:
+  wan_a:
+    driver: bridge
+    ipam:
+      config: [{ subnet: 10.10.0.0/24 }]
+  wan_b:
+    driver: bridge
+    ipam:
+      config: [{ subnet: 10.20.0.0/24 }]
