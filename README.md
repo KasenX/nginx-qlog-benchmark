@@ -1,6 +1,6 @@
 # Benchmark Toolkit
 
-This directory contains the benchmark tooling used for the qlog thesis work.
+This repo contains the benchmark tooling used for the qlog thesis work.
 
 ## Recommended workflow
 
