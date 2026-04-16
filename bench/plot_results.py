@@ -24,13 +24,28 @@ PLOTS_DIR = Path(
 ).expanduser()
 
 BASELINE_SCENARIO = "master"
-SCENARIO_ORDER = ["master", "qlog-off", "qlog-on-ram", "qlog-on-disk"]
+SCENARIO_ORDER = [
+    "master",
+    "qlog-off",
+    "quic-qlog",
+    "quic-qlog-extended",
+    "http3-qlog",
+    "qlog-on-disk",
+]
+RAM_QLOG_SCENARIOS = {"quic-qlog", "quic-qlog-extended", "http3-qlog"}
+QLOG_SCENARIOS = [
+    "quic-qlog",
+    "quic-qlog-extended",
+    "http3-qlog",
+    "qlog-on-disk",
+]
 SCENARIO_COLORS = {
     "master": "#3b4252",
     "qlog-off": "#5e81ac",
-    "qlog-on-ram": "#d08700",
+    "quic-qlog": "#d08700",
+    "quic-qlog-extended": "#b48ead",
+    "http3-qlog": "#a3be8c",
     "qlog-on-disk": "#bf616a",
-    "qlog-enabled": "#4c566a",
 }
 WORKLOAD_ORDER = ["small", "bulk"]
 WORKLOAD_LABELS = {
@@ -352,10 +367,8 @@ def scenario_sort_key(scenario: str) -> int:
 
 
 def scenario_label(scenario: str, has_ram_saturation: bool) -> str:
-    if scenario == "qlog-enabled":
-        return "qlog-enabled"
-    if scenario == "qlog-on-ram" and has_ram_saturation:
-        return "qlog-on-ram*"
+    if scenario in RAM_QLOG_SCENARIOS and has_ram_saturation:
+        return f"{scenario}*"
     return scenario
 
 
@@ -395,7 +408,7 @@ def add_legend(
         lines.append(
             f'<rect x="{x}" y="{yy - 10}" width="16" height="12" rx="2" fill="{color}" />'
         )
-        if scenario == "qlog-on-ram" and has_ram_saturation:
+        if scenario in RAM_QLOG_SCENARIOS and has_ram_saturation:
             lines.append(
                 f'<rect x="{x}" y="{yy - 10}" width="16" height="12" rx="2" fill="url(#sat-stripe)" />'
             )
@@ -518,7 +531,7 @@ def draw_grouped_bar_chart(
         yy = plot_y0 + 20 + idx * 22
         label = scenario_label(scenario, has_ram_saturation)
         pdf.rect(plot_x1 + 32, yy - 10, 16, 12, fill=SCENARIO_COLORS[scenario])
-        if scenario == "qlog-on-ram" and has_ram_saturation:
+        if scenario in RAM_QLOG_SCENARIOS and has_ram_saturation:
             pdf.striped_rect(plot_x1 + 32, yy - 10, 16, 12)
         pdf.text(
             plot_x1 + 56,
@@ -654,7 +667,7 @@ def draw_dot_plot(
         yy = plot_y0 + 20 + idx * 22
         label = scenario_label(scenario, has_ram_saturation)
         pdf.rect(plot_x1 + 32, yy - 10, 16, 12, fill=SCENARIO_COLORS[scenario])
-        if scenario == "qlog-on-ram" and has_ram_saturation:
+        if scenario in RAM_QLOG_SCENARIOS and has_ram_saturation:
             pdf.striped_rect(plot_x1 + 32, yy - 10, 16, 12)
         pdf.text(
             plot_x1 + 56,
@@ -754,25 +767,30 @@ def build_bytes_per_request_values(
     qlog_rows = [
         row
         for row in workload_rows
-        if row["scenario"] in ("qlog-on-ram", "qlog-on-disk")
+        if row["scenario"] in QLOG_SCENARIOS
     ]
     labels = [WORKLOAD_LABELS[w] for w in WORKLOAD_ORDER]
     grouped_values: List[List[SeriesValue]] = []
     for workload in WORKLOAD_ORDER:
-        values = [
-            float(row["qlog_bytes_per_request"])
-            for row in qlog_rows
-            if row["workload"] == workload
-        ]
-        median_value = float(median(values))
-        saturated = any(
-            row.get("qlog_ram_saturated") == "yes"
-            for row in qlog_rows
-            if row["workload"] == workload
-        )
-        grouped_values.append(
-            [SeriesValue(scenario="qlog-enabled", value=median_value, saturated=saturated)]
-        )
+        series_values: List[SeriesValue] = []
+        for scenario in QLOG_SCENARIOS:
+            values = [
+                float(row["qlog_bytes_per_request"])
+                for row in qlog_rows
+                if row["workload"] == workload and row["scenario"] == scenario
+            ]
+            series_values.append(
+                SeriesValue(
+                    scenario=scenario,
+                    value=float(median(values)),
+                    saturated=any(
+                        row.get("qlog_ram_saturated") == "yes"
+                        for row in qlog_rows
+                        if row["workload"] == workload and row["scenario"] == scenario
+                    ),
+                )
+            )
+        grouped_values.append(series_values)
     return labels, grouped_values
 
 
@@ -782,25 +800,30 @@ def build_total_qlog_bytes_values(
     qlog_rows = [
         row
         for row in workload_rows
-        if row["scenario"] in ("qlog-on-ram", "qlog-on-disk")
+        if row["scenario"] in QLOG_SCENARIOS
     ]
     labels = [WORKLOAD_LABELS[w] for w in WORKLOAD_ORDER]
     grouped_values: List[List[SeriesValue]] = []
     for workload in WORKLOAD_ORDER:
-        values = [
-            float(row["qlog_total_bytes"])
-            for row in qlog_rows
-            if row["workload"] == workload
-        ]
-        median_value = float(median(values))
-        saturated = any(
-            row.get("qlog_ram_saturated") == "yes"
-            for row in qlog_rows
-            if row["workload"] == workload
-        )
-        grouped_values.append(
-            [SeriesValue(scenario="qlog-enabled", value=median_value, saturated=saturated)]
-        )
+        series_values: List[SeriesValue] = []
+        for scenario in QLOG_SCENARIOS:
+            values = [
+                float(row["qlog_total_bytes"])
+                for row in qlog_rows
+                if row["workload"] == workload and row["scenario"] == scenario
+            ]
+            series_values.append(
+                SeriesValue(
+                    scenario=scenario,
+                    value=float(median(values)),
+                    saturated=any(
+                        row.get("qlog_ram_saturated") == "yes"
+                        for row in qlog_rows
+                        if row["workload"] == workload and row["scenario"] == scenario
+                    ),
+                )
+            )
+        grouped_values.append(series_values)
     return labels, grouped_values
 
 
@@ -972,7 +995,7 @@ def main() -> None:
         ylabel="qlog bytes per request",
         y_ticks=[0, 100_000, 200_000, 300_000, 400_000],
         y_max=400_000,
-        scenarios=["qlog-enabled"],
+        scenarios=QLOG_SCENARIOS,
         has_ram_saturation=has_ram_saturation,
         footnote=None,
         value_formatter=fmt_bytes_per_request,
@@ -986,7 +1009,7 @@ def main() -> None:
         ylabel="total qlog bytes",
         y_ticks=[0, 5_000_000_000, 10_000_000_000, 15_000_000_000, 20_000_000_000, 25_000_000_000],
         y_max=25_000_000_000,
-        scenarios=["qlog-enabled"],
+        scenarios=QLOG_SCENARIOS,
         has_ram_saturation=has_ram_saturation,
         footnote=None,
         value_formatter=fmt_bytes,
@@ -1013,13 +1036,13 @@ def main() -> None:
         "- `cpu_busy_normalized.{svg,pdf}`: grouped bar chart of median server CPU busy normalized to `master`",
         "- `cpu_busy_absolute.{svg,pdf}`: grouped bar chart of median absolute server CPU busy percentage",
         "- `cpu_efficiency_normalized.{svg,pdf}`: grouped bar chart of median CPU busy per 1000 req/s normalized to `master`",
-        "- `qlog_bytes_per_request.{svg,pdf}`: qlog volume per successful request, aggregated across qlog-enabled runs",
-        "- `qlog_total_bytes.{svg,pdf}`: total qlog volume per workload run, aggregated across qlog-enabled runs",
+        "- `qlog_bytes_per_request.{svg,pdf}`: qlog volume per successful request for each qlog-writing scenario",
+        "- `qlog_total_bytes.{svg,pdf}`: total qlog volume per workload run for each qlog-writing scenario",
         "- `throughput_repeats.{svg,pdf}`: repeat-level req/s scatter with median markers",
         "",
         "All plots are generated directly from the checked-in TSV summaries in `results/analysis`.",
         (
-            "The `qlog-on-ram` series is annotated because tmpfs saturation occurred in at least one run."
+            "RAM-backed qlog series are annotated because tmpfs saturation occurred in at least one run."
             if has_ram_saturation
             else "No tmpfs saturation was detected in the current analysis set."
         ),

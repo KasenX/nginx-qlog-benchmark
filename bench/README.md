@@ -12,7 +12,7 @@ Use the manual one-case-at-a-time helpers:
 
 They enumerate the fixed benchmark matrix and let you run one case per `RUN_ID`,
 which keeps server/client coordination simple and makes qlog cleanup and storage
-control straightforward. This is the preferred mode for `qlog-on-ram`.
+control straightforward. This is the preferred mode for the RAM-backed qlog scenarios.
 
 The current workload matrix contains two workloads:
 
@@ -55,7 +55,7 @@ This keeps raw benchmark output out of the repo by default.
 The SSH orchestrator keeps its own local metadata under:
 
 ```text
-$HOME/bench-results/orchestrator
+$PWD/results/orchestrator
 ```
 
 ## Manual case execution
@@ -78,28 +78,215 @@ RUN_SET_ID=thesis-main bench/print_manual_case_commands.sh > manual-cases.txt
 
 ## Third-machine orchestration
 
-To run cases from a separate coordination host, use:
+A third machine can coordinate the benchmark over SSH while keeping the raw
+server and client results on their respective VMs. This is the recommended
+workflow when you do not want to start each side manually.
+
+### 1. Prepare the server VM
+
+Clone the repo on the server VM at the path expected by the orchestrator, or
+plan to override `SERVER_REPO_DIR`:
 
 ```bash
-RUN_SET_ID=thesis-main \
-SERVER_SSH=jakub@84.17.61.47 \
-CLIENT_SSH=jakub@89.222.113.26 \
-BASE_URI=https://84.17.61.47:8443 \
-CA_CERT_FILE=$HOME/bench-certs/server.crt \
-bash bench/run_cases_via_ssh.sh run 1 2 3
+git clone <repo-url> "$HOME/nginx-qlog"
+cd "$HOME/nginx-qlog"
 ```
 
-You can also run ranges or the full set:
+Do the one-time benchmark host setup, build the nginx variants, and generate
+the benchmark configs:
 
 ```bash
-bash bench/run_cases_via_ssh.sh range 1 12
-bash bench/run_cases_via_ssh.sh all
+sudo bash bench/prepare_benchmark_vm.sh
+bash bench/install_nginx_variants.sh
+bash bench/generate_benchmark_configs.sh
 ```
 
-To inspect the indexed case table without contacting the remote hosts:
+Confirm the generated server certificate exists. The client VM will need a copy
+of this certificate:
+
+```bash
+ls -l "$HOME/opt/nginx-bench/certs/server.crt"
+```
+
+Optional quick checks on the server VM:
+
+```bash
+findmnt /mnt/qlog-ram
+bash bench/run_case_by_index.sh --list | sed -n '1,12p'
+```
+
+### 2. Prepare the client VM
+
+Clone the same repo on the client VM at the path expected by the orchestrator,
+or plan to override `CLIENT_REPO_DIR`:
+
+```bash
+git clone <repo-url> "$HOME/nginx-qlog"
+cd "$HOME/nginx-qlog"
+```
+
+Install the client-side benchmark helper packages and make sure `h2load` is
+available as `h2load` or via `H2LOAD_BIN`. In the standard setup the helper
+packages are installed with:
+
+```bash
+sudo bash bench/prepare_benchmark_vm.sh
+```
+
+Then verify the actual load generator is present:
+
+```bash
+h2load --version
+```
+
+Copy the server certificate from the server VM onto the client VM. The
+orchestrator passes `CA_CERT_FILE` to the client over SSH, so this path must be
+valid on the client VM, not on the third machine:
+
+```bash
+mkdir -p "$HOME/bench-certs"
+scp user@server:"$HOME/opt/nginx-bench/certs/server.crt" "$HOME/bench-certs/server.crt"
+```
+
+Optional quick checks on the client VM:
+
+```bash
+ls -l "$HOME/bench-certs/server.crt"
+h2load --version
+bash bench/run_case_by_index.sh --list | sed -n '1,12p'
+```
+
+### 3. Prepare the third machine
+
+Clone this repo on the coordinator machine. It does not need nginx builds or
+benchmark configs because it only runs the orchestration and analysis scripts:
+
+```bash
+git clone <repo-url> "$HOME/nginx-qlog"
+cd "$HOME/nginx-qlog"
+```
+
+By default, the orchestrator writes its own local manifest and SSH logs under
+the current working directory, so running it from the repo root keeps that
+metadata in this repo under `results/orchestrator`:
+
+```text
+$PWD/results/orchestrator
+```
+
+Make sure SSH access works in both directions before starting a run:
+
+```bash
+ssh user@server 'hostname && test -d "$HOME/nginx-qlog"'
+ssh user@client 'hostname && test -d "$HOME/nginx-qlog"'
+```
+
+List the indexed benchmark matrix locally:
 
 ```bash
 bash bench/run_cases_via_ssh.sh --list | column -ts $'\t'
+```
+
+### 4. Run the orchestrator
+
+Start with a small case subset first:
+
+```bash
+cd "$HOME/nginx-qlog"
+RUN_SET_ID=thesis-main \
+SERVER_SSH=user@84.17.61.47 \
+CLIENT_SSH=user@89.222.113.26 \
+BASE_URI=https://84.17.61.47:8443 \
+CA_CERT_FILE=/home/user/bench-certs/server.crt \
+bash bench/run_cases_via_ssh.sh run 1 2 3
+```
+
+The important detail is that `CA_CERT_FILE` above is a path on the client VM.
+Do not pass a coordinator-local path like `/Users/...`.
+
+Once the small smoke test passes, run a range or the full matrix:
+
+```bash
+cd "$HOME/nginx-qlog"
+RUN_SET_ID=thesis-main \
+SERVER_SSH=user@84.17.61.47 \
+CLIENT_SSH=user@89.222.113.26 \
+BASE_URI=https://84.17.61.47:8443 \
+CA_CERT_FILE=/home/user/bench-certs/server.crt \
+bash bench/run_cases_via_ssh.sh range 1 12
+
+RUN_SET_ID=thesis-main \
+SERVER_SSH=user@84.17.61.47 \
+CLIENT_SSH=user@89.222.113.26 \
+BASE_URI=https://84.17.61.47:8443 \
+CA_CERT_FILE=/home/user/bench-certs/server.crt \
+bash bench/run_cases_via_ssh.sh all
+```
+
+Useful overrides while iterating:
+
+- `SERVER_REPO_DIR` and `CLIENT_REPO_DIR` if the remote clones are not at `$HOME/nginx-qlog`
+- `SERVER_RESULTS_ROOT` if you changed the server result root from `$HOME/opt/nginx-bench/results/server`
+- `CLIENT_RESULTS_ROOT` if you changed the client result root from `$HOME/bench-results/client`
+- `STOP_ON_FAILURE=0` if you want the orchestrator to continue after a failed case
+- `BETWEEN_CASE_DELAY=<seconds>` if you want a pause between cases
+
+The coordinator writes only orchestration metadata and SSH logs under:
+
+```text
+$PWD/results/orchestrator/run_sets/$RUN_SET_ID
+```
+
+The key file there is:
+
+`$PWD/results/orchestrator/run_sets/$RUN_SET_ID/manifest.tsv`
+
+### 5. Collect the results onto the third machine
+
+The orchestrator does not automatically copy raw benchmark data back from the
+VMs. After the run, collect the server and client result trees onto the third
+machine into a combined root such as `$HOME/bench-results`:
+
+```bash
+mkdir -p "$HOME/bench-results/server" "$HOME/bench-results/client"
+
+rsync -av user@84.17.61.47:"$HOME/opt/nginx-bench/results/server/" "$HOME/bench-results/server/"
+rsync -av user@89.222.113.26:"$HOME/bench-results/client/" "$HOME/bench-results/client/"
+```
+
+The orchestrator metadata is already local on the third machine because that is
+where `run_cases_via_ssh.sh` was executed. You should already have:
+
+```text
+$PWD/results/orchestrator
+```
+
+At that point the third machine has:
+
+```text
+$HOME/bench-results/server
+$HOME/bench-results/client
+$PWD/results/orchestrator
+```
+
+Only `server` and `client` need to be under `BENCH_RESULTS_DIR` for the
+analysis scripts. The orchestrator manifest and SSH logs stay separate.
+
+### 6. Analyze the collected results
+
+Run the analysis scripts on the third machine against the merged external
+results root:
+
+```bash
+cd "$HOME/nginx-qlog"
+BENCH_RESULTS_DIR=$HOME/bench-results python3 bench/summarize_results.py
+BENCH_RESULTS_DIR=$HOME/bench-results python3 bench/plot_results.py
+```
+
+The generated summaries will be written under:
+
+```text
+$HOME/bench-results/analysis
 ```
 
 ## Analysis

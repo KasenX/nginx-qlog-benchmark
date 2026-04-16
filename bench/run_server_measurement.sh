@@ -31,7 +31,7 @@ Environment overrides:
 
 Examples:
   RUN_ID=pilot-001 RUN_SECONDS=75 bench/run_server_measurement.sh qlog-off
-  RUN_ID=pilot-002 RUN_SECONDS=75 bench/run_server_measurement.sh qlog-on-ram
+  RUN_ID=pilot-002 RUN_SECONDS=75 bench/run_server_measurement.sh quic-qlog
 
 Notes:
   - Start this on the server VM before the client-side h2load run.

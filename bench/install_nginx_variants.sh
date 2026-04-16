@@ -5,16 +5,20 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Build and install two NGINX variants from this repository:
+Build and install four NGINX variants from this repository:
   1. master
-  2. feature/quic-qlog with --with-quic_qlog_module
+  2. quic-qlog
+  3. quic-qlog-extended
+  4. http3-qlog
 
 Run this script from any working tree of the nginx-qlog repository on Debian.
 
 Environment overrides:
   REMOTE=origin
   MASTER_REF=origin/master
-  QLOG_REF=origin/feature/quic-qlog
+  QUIC_QLOG_REF=origin/quic-qlog
+  QUIC_QLOG_EXTENDED_REF=origin/quic-qlog-extended
+  HTTP3_QLOG_REF=origin/http3-qlog
   SRC_ROOT=$HOME/src/nginx-bench
   PREFIX_ROOT=$HOME/opt/nginx-bench
   JOBS=<nproc>
@@ -167,17 +171,23 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" \
 
 REMOTE="${REMOTE:-origin}"
 MASTER_REF="${MASTER_REF:-$REMOTE/master}"
-QLOG_REF="${QLOG_REF:-$REMOTE/feature/quic-qlog}"
+QUIC_QLOG_REF="${QUIC_QLOG_REF:-$REMOTE/quic-qlog}"
+QUIC_QLOG_EXTENDED_REF="${QUIC_QLOG_EXTENDED_REF:-$REMOTE/quic-qlog-extended}"
+HTTP3_QLOG_REF="${HTTP3_QLOG_REF:-$REMOTE/http3-qlog}"
 SRC_ROOT="${SRC_ROOT:-$HOME/src/nginx-bench}"
 PREFIX_ROOT="${PREFIX_ROOT:-$HOME/opt/nginx-bench}"
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')}"
 CC_OPT="${CC_OPT:--O2 -fno-omit-frame-pointer}"
 
 MASTER_SRC="$SRC_ROOT/master"
-QLOG_SRC="$SRC_ROOT/qlog"
+QUIC_QLOG_SRC="$SRC_ROOT/quic-qlog"
+QUIC_QLOG_EXTENDED_SRC="$SRC_ROOT/quic-qlog-extended"
+HTTP3_QLOG_SRC="$SRC_ROOT/http3-qlog"
 
 MASTER_PREFIX="$PREFIX_ROOT/master"
-QLOG_PREFIX="$PREFIX_ROOT/qlog"
+QUIC_QLOG_PREFIX="$PREFIX_ROOT/quic-qlog"
+QUIC_QLOG_EXTENDED_PREFIX="$PREFIX_ROOT/quic-qlog-extended"
+HTTP3_QLOG_PREFIX="$PREFIX_ROOT/http3-qlog"
 
 mkdir -p "$SRC_ROOT" "$PREFIX_ROOT"
 
@@ -189,19 +199,31 @@ git -C "$REPO_ROOT" fetch --prune "$REMOTE"
 
 git -C "$REPO_ROOT" rev-parse --verify "$MASTER_REF" >/dev/null \
     || die "cannot resolve ref: $MASTER_REF"
-git -C "$REPO_ROOT" rev-parse --verify "$QLOG_REF" >/dev/null \
-    || die "cannot resolve ref: $QLOG_REF"
+git -C "$REPO_ROOT" rev-parse --verify "$QUIC_QLOG_REF" >/dev/null \
+    || die "cannot resolve ref: $QUIC_QLOG_REF"
+git -C "$REPO_ROOT" rev-parse --verify "$QUIC_QLOG_EXTENDED_REF" >/dev/null \
+    || die "cannot resolve ref: $QUIC_QLOG_EXTENDED_REF"
+git -C "$REPO_ROOT" rev-parse --verify "$HTTP3_QLOG_REF" >/dev/null \
+    || die "cannot resolve ref: $HTTP3_QLOG_REF"
 
 ensure_worktree "$MASTER_SRC" "$MASTER_REF"
-ensure_worktree "$QLOG_SRC" "$QLOG_REF"
+ensure_worktree "$QUIC_QLOG_SRC" "$QUIC_QLOG_REF"
+ensure_worktree "$QUIC_QLOG_EXTENDED_SRC" "$QUIC_QLOG_EXTENDED_REF"
+ensure_worktree "$HTTP3_QLOG_SRC" "$HTTP3_QLOG_REF"
 
 configure_and_install "master" "$MASTER_SRC" "$MASTER_PREFIX"
-configure_and_install "qlog" "$QLOG_SRC" "$QLOG_PREFIX" --with-quic_qlog_module
+configure_and_install "quic-qlog" "$QUIC_QLOG_SRC" "$QUIC_QLOG_PREFIX" --with-quic_qlog_module
+configure_and_install "quic-qlog-extended" "$QUIC_QLOG_EXTENDED_SRC" "$QUIC_QLOG_EXTENDED_PREFIX" --with-quic_qlog_module
+configure_and_install "http3-qlog" "$HTTP3_QLOG_SRC" "$HTTP3_QLOG_PREFIX" --with-quic_qlog_module
 
 log "Installed variants:"
 printf '  %-15s %s\n' "master" "$MASTER_PREFIX/sbin/nginx"
-printf '  %-15s %s\n' "qlog" "$QLOG_PREFIX/sbin/nginx"
+printf '  %-15s %s\n' "quic-qlog" "$QUIC_QLOG_PREFIX/sbin/nginx"
+printf '  %-15s %s\n' "quic-qlog-ext" "$QUIC_QLOG_EXTENDED_PREFIX/sbin/nginx"
+printf '  %-15s %s\n' "http3-qlog" "$HTTP3_QLOG_PREFIX/sbin/nginx"
 
 log "Build metadata:"
 printf '  %s\n' "$MASTER_PREFIX/BUILD_INFO.txt"
-printf '  %s\n' "$QLOG_PREFIX/BUILD_INFO.txt"
+printf '  %s\n' "$QUIC_QLOG_PREFIX/BUILD_INFO.txt"
+printf '  %s\n' "$QUIC_QLOG_EXTENDED_PREFIX/BUILD_INFO.txt"
+printf '  %s\n' "$HTTP3_QLOG_PREFIX/BUILD_INFO.txt"

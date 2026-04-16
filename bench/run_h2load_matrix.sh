@@ -21,7 +21,7 @@ Examples:
 
   BASE_URI=https://streaming-dev-jj-01-84-17-61-47.cdn77.eu:8443 \\
   CONNECT_TO=84.17.61.47:8443 SNI=streaming-dev-jj-01-84-17-61-47.cdn77.eu \\
-  RUN_ID=pilot-002 bench/run_h2load_matrix.sh qlog-on-ram
+  RUN_ID=pilot-002 bench/run_h2load_matrix.sh quic-qlog
 
 Environment overrides:
   H2LOAD_BIN=h2load

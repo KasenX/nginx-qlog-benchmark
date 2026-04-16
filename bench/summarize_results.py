@@ -27,6 +27,7 @@ FINISHED_RE = re.compile(
 TIME_LINE_RE = re.compile(r"^(time for request|time to 1st byte):\s+(.+)$")
 RTT_LINE_RE = re.compile(r"^(smoothed RTT|min RTT):\s+(.+)$")
 BASELINE_SCENARIO = "master"
+RAM_QLOG_SCENARIOS = {"quic-qlog", "quic-qlog-extended", "http3-qlog"}
 
 
 @dataclass
@@ -579,7 +580,7 @@ def main() -> None:
             qlog_total_bytes / qlog_file_count if qlog_file_count else 0.0
         )
         qlog_ram_saturated = (
-            run.scenario == "qlog-on-ram"
+            run.scenario in RAM_QLOG_SCENARIOS
             and qlog_total_bytes >= int(0.99 * 8 * 1024 * 1024 * 1024)
             and qlog_stats["qlog_zero_byte_files"] > 0
         )
@@ -703,17 +704,17 @@ def main() -> None:
         for row in cell_rows
         if row["scenario"] == "qlog-off"
     }
-    ram_map = {
+    quic_qlog_map = {
         (row["workload"], row["path"], row["clients"], row["streams"]): row
         for row in cell_rows
-        if row["scenario"] == "qlog-on-ram"
+        if row["scenario"] == "quic-qlog"
     }
 
     comparison_rows: List[Dict[str, object]] = []
     for row in cell_rows:
         key = (row["workload"], row["path"], row["clients"], row["streams"])
         baseline = baseline_map.get(key)
-        ram = ram_map.get(key)
+        quic_qlog = quic_qlog_map.get(key)
         baseline_req_per_s = baseline["median_req_per_s"] if baseline else 0.0
         baseline_p95 = baseline["median_request_p95_us"] if baseline else 0.0
         baseline_cpu_busy = baseline["median_server_cpu_busy_pct"] if baseline else 0.0
@@ -722,7 +723,7 @@ def main() -> None:
         )
         qlog_off = qlog_off_map.get(key)
         qlog_off_req_per_s = qlog_off["median_req_per_s"] if qlog_off else 0.0
-        ram_req_per_s = ram["median_req_per_s"] if ram else 0.0
+        quic_qlog_req_per_s = quic_qlog["median_req_per_s"] if quic_qlog else 0.0
 
         delta_vs_master_req_pct = (
             ((row["median_req_per_s"] - baseline_req_per_s) / baseline_req_per_s) * 100.0
@@ -757,9 +758,9 @@ def main() -> None:
             if qlog_off_req_per_s
             else 0.0
         )
-        delta_vs_qlog_on_ram_req_pct = (
-            ((row["median_req_per_s"] - ram_req_per_s) / ram_req_per_s) * 100.0
-            if ram_req_per_s
+        delta_vs_quic_qlog_req_pct = (
+            ((row["median_req_per_s"] - quic_qlog_req_per_s) / quic_qlog_req_per_s) * 100.0
+            if quic_qlog_req_per_s
             else 0.0
         )
 
@@ -771,7 +772,7 @@ def main() -> None:
                 "delta_server_cpu_busy_vs_master_pct": delta_vs_master_cpu_busy_pct,
                 "delta_server_cpu_busy_per_krps_vs_master_pct": delta_vs_master_cpu_per_krps_pct,
                 "delta_req_per_s_vs_qlog_off_pct": delta_vs_qlog_off_req_pct,
-                "delta_req_per_s_vs_qlog_on_ram_pct": delta_vs_qlog_on_ram_req_pct,
+                "delta_req_per_s_vs_quic_qlog_pct": delta_vs_quic_qlog_req_pct,
             }
         )
 
@@ -928,7 +929,7 @@ def main() -> None:
             "delta_server_cpu_busy_vs_master_pct",
             "delta_server_cpu_busy_per_krps_vs_master_pct",
             "delta_req_per_s_vs_qlog_off_pct",
-            "delta_req_per_s_vs_qlog_on_ram_pct",
+            "delta_req_per_s_vs_quic_qlog_pct",
         ],
     )
 

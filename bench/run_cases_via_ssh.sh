@@ -28,7 +28,7 @@ Required environment for run/range/all:
 
 Case-matrix selection:
   RUN_SET_ID=thesis-main
-  SCENARIOS=master,qlog-off,qlog-on-ram,qlog-on-disk
+  SCENARIOS=master,qlog-off,quic-qlog,quic-qlog-extended,http3-qlog,qlog-on-disk
   WORKLOADS=small,bulk
   REPEATS=7
 
@@ -59,7 +59,7 @@ Orchestrator behavior:
   SERVER_START_DELAY=3
   BETWEEN_CASE_DELAY=0
   STOP_ON_FAILURE=1
-  ORCHESTRATOR_RESULTS_ROOT=$HOME/bench-results/orchestrator
+  ORCHESTRATOR_RESULTS_ROOT=$PWD/results/orchestrator
 
 Examples:
   bench/run_cases_via_ssh.sh --list | sed -n '1,12p'
@@ -273,7 +273,7 @@ if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
 fi
 
 RUN_SET_ID="${RUN_SET_ID:-$(date -u '+%Y-%m-%d-orchestrated')}"
-SCENARIOS="${SCENARIOS:-master,qlog-off,qlog-on-ram,qlog-on-disk}"
+SCENARIOS="${SCENARIOS:-master,qlog-off,quic-qlog,quic-qlog-extended,http3-qlog,qlog-on-disk}"
 WORKLOADS="${WORKLOADS:-small,bulk}"
 REPEATS="${REPEATS:-7}"
 
@@ -302,7 +302,7 @@ INTER_RUN_SLEEP="${INTER_RUN_SLEEP:-0}"
 SERVER_START_DELAY="${SERVER_START_DELAY:-3}"
 BETWEEN_CASE_DELAY="${BETWEEN_CASE_DELAY:-0}"
 STOP_ON_FAILURE="${STOP_ON_FAILURE:-1}"
-ORCHESTRATOR_RESULTS_ROOT="${ORCHESTRATOR_RESULTS_ROOT:-$HOME/bench-results/orchestrator}"
+ORCHESTRATOR_RESULTS_ROOT="${ORCHESTRATOR_RESULTS_ROOT:-$PWD/results/orchestrator}"
 
 RUN_SET_DIR="$ORCHESTRATOR_RESULTS_ROOT/run_sets/$RUN_SET_ID"
 MANIFEST_PATH="$RUN_SET_DIR/manifest.tsv"

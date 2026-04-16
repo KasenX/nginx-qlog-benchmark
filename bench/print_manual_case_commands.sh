@@ -20,7 +20,7 @@ Usage:
 
 Environment overrides:
   RUN_SET_ID=2026-03-19-manual
-  SCENARIOS=master,qlog-off,qlog-on-ram,qlog-on-disk
+  SCENARIOS=master,qlog-off,quic-qlog,quic-qlog-extended,http3-qlog,qlog-on-disk
   WORKLOADS=small,bulk
   REPEATS=7
 
@@ -95,7 +95,7 @@ if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
 fi
 
 RUN_SET_ID="${RUN_SET_ID:-$(date -u '+%Y-%m-%d-manual')}"
-SCENARIOS="${SCENARIOS:-master,qlog-off,qlog-on-ram,qlog-on-disk}"
+SCENARIOS="${SCENARIOS:-master,qlog-off,quic-qlog,quic-qlog-extended,http3-qlog,qlog-on-disk}"
 WORKLOADS="${WORKLOADS:-small,bulk}"
 REPEATS="${REPEATS:-7}"
 
