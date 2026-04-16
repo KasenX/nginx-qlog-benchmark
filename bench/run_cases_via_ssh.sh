@@ -33,8 +33,8 @@ Case-matrix selection:
   REPEATS=7
 
 Remote repo locations:
-  SERVER_REPO_DIR=$HOME/nginx-qlog
-  CLIENT_REPO_DIR=$HOME/nginx-qlog
+  SERVER_REPO_DIR=$HOME/nginx-qlog-benchmark
+  CLIENT_REPO_DIR=$HOME/nginx-qlog-benchmark
 
 Server-side overrides:
   PREFIX_ROOT=$HOME/opt/nginx-bench
@@ -64,7 +64,7 @@ Orchestrator behavior:
 Examples:
   bench/run_cases_via_ssh.sh --list | sed -n '1,12p'
   RUN_SET_ID=thesis-main SERVER_SSH=jakub@84.17.61.47 CLIENT_SSH=jakub@89.222.113.26 \
-    BASE_URI=https://84.17.61.47:8443 CA_CERT_FILE=$HOME/bench-certs/server.crt \
+    BASE_URI=https://84.17.61.47:8443 CA_CERT_FILE=/home/jakub/bench-certs/server.crt \
     bench/run_cases_via_ssh.sh run 1 2 3
   RUN_SET_ID=thesis-main SERVER_SSH=jakub@84.17.61.47 CLIENT_SSH=jakub@89.222.113.26 \
     bench/run_cases_via_ssh.sh range 1 12
@@ -279,8 +279,8 @@ REPEATS="${REPEATS:-7}"
 
 SERVER_SSH="${SERVER_SSH:-}"
 CLIENT_SSH="${CLIENT_SSH:-}"
-SERVER_REPO_DIR="${SERVER_REPO_DIR:-$HOME/nginx-qlog}"
-CLIENT_REPO_DIR="${CLIENT_REPO_DIR:-$HOME/nginx-qlog}"
+SERVER_REPO_DIR="${SERVER_REPO_DIR:-$HOME/nginx-qlog-benchmark}"
+CLIENT_REPO_DIR="${CLIENT_REPO_DIR:-$HOME/nginx-qlog-benchmark}"
 
 PREFIX_ROOT="${PREFIX_ROOT:-$HOME/opt/nginx-bench}"
 SERVER_RESULTS_ROOT="${SERVER_RESULTS_ROOT:-$PREFIX_ROOT/results/server}"

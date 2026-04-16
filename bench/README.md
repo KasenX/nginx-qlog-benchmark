@@ -84,20 +84,37 @@ workflow when you do not want to start each side manually.
 
 ### 1. Prepare the server VM
 
-Clone the repo on the server VM at the path expected by the orchestrator, or
-plan to override `SERVER_REPO_DIR`:
+The server VM typically has two separate checkouts:
+
+- `"$HOME/nginx-qlog"`: the nginx source repository with the qlog branches
+- `"$HOME/nginx-qlog-benchmark"`: this benchmark/orchestration repository
+
+Clone both:
 
 ```bash
-git clone <repo-url> "$HOME/nginx-qlog"
-cd "$HOME/nginx-qlog"
+git clone <nginx-qlog-repo-url> "$HOME/nginx-qlog"
+git clone <benchmark-repo-url> "$HOME/nginx-qlog-benchmark"
 ```
 
-Do the one-time benchmark host setup, build the nginx variants, and generate
-the benchmark configs:
+Do the one-time benchmark host setup from the benchmark repo:
 
 ```bash
+cd "$HOME/nginx-qlog-benchmark"
 sudo bash bench/prepare_benchmark_vm.sh
-bash bench/install_nginx_variants.sh
+```
+
+Build the nginx variants from inside the nginx source repo, invoking the script
+from the benchmark repo:
+
+```bash
+cd "$HOME/nginx-qlog"
+bash ../nginx-qlog-benchmark/bench/install_nginx_variants.sh
+```
+
+Then generate the benchmark configs from the benchmark repo:
+
+```bash
+cd "$HOME/nginx-qlog-benchmark"
 bash bench/generate_benchmark_configs.sh
 ```
 
@@ -112,17 +129,18 @@ Optional quick checks on the server VM:
 
 ```bash
 findmnt /mnt/qlog-ram
+cd "$HOME/nginx-qlog-benchmark"
 bash bench/run_case_by_index.sh --list | sed -n '1,12p'
 ```
 
 ### 2. Prepare the client VM
 
-Clone the same repo on the client VM at the path expected by the orchestrator,
-or plan to override `CLIENT_REPO_DIR`:
+The client VM typically only needs the benchmark repo checkout used by the
+orchestrator and runner scripts:
 
 ```bash
-git clone <repo-url> "$HOME/nginx-qlog"
-cd "$HOME/nginx-qlog"
+git clone <benchmark-repo-url> "$HOME/nginx-qlog-benchmark"
+cd "$HOME/nginx-qlog-benchmark"
 ```
 
 Install the client-side benchmark helper packages and make sure `h2load` is
@@ -158,12 +176,12 @@ bash bench/run_case_by_index.sh --list | sed -n '1,12p'
 
 ### 3. Prepare the third machine
 
-Clone this repo on the coordinator machine. It does not need nginx builds or
-benchmark configs because it only runs the orchestration and analysis scripts:
+Clone this benchmark repo on the coordinator machine. It does not need the
+`nginx-qlog` source repo unless you also want to build there:
 
 ```bash
-git clone <repo-url> "$HOME/nginx-qlog"
-cd "$HOME/nginx-qlog"
+git clone <benchmark-repo-url> "$HOME/nginx-qlog-benchmark"
+cd "$HOME/nginx-qlog-benchmark"
 ```
 
 By default, the orchestrator writes its own local manifest and SSH logs under
@@ -177,8 +195,8 @@ $PWD/results/orchestrator
 Make sure SSH access works in both directions before starting a run:
 
 ```bash
-ssh user@server 'hostname && test -d "$HOME/nginx-qlog"'
-ssh user@client 'hostname && test -d "$HOME/nginx-qlog"'
+ssh user@server 'hostname && test -d "$HOME/nginx-qlog" && test -d "$HOME/nginx-qlog-benchmark"'
+ssh user@client 'hostname && test -d "$HOME/nginx-qlog-benchmark"'
 ```
 
 List the indexed benchmark matrix locally:
@@ -192,7 +210,7 @@ bash bench/run_cases_via_ssh.sh --list | column -ts $'\t'
 Start with a small case subset first:
 
 ```bash
-cd "$HOME/nginx-qlog"
+cd "$HOME/nginx-qlog-benchmark"
 RUN_SET_ID=thesis-main \
 SERVER_SSH=user@84.17.61.47 \
 CLIENT_SSH=user@89.222.113.26 \
@@ -207,7 +225,7 @@ Do not pass a coordinator-local path like `/Users/...`.
 Once the small smoke test passes, run a range or the full matrix:
 
 ```bash
-cd "$HOME/nginx-qlog"
+cd "$HOME/nginx-qlog-benchmark"
 RUN_SET_ID=thesis-main \
 SERVER_SSH=user@84.17.61.47 \
 CLIENT_SSH=user@89.222.113.26 \
@@ -225,7 +243,7 @@ bash bench/run_cases_via_ssh.sh all
 
 Useful overrides while iterating:
 
-- `SERVER_REPO_DIR` and `CLIENT_REPO_DIR` if the remote clones are not at `$HOME/nginx-qlog`
+- `SERVER_REPO_DIR` and `CLIENT_REPO_DIR` if the remote benchmark repo clones are not at `$HOME/nginx-qlog-benchmark`
 - `SERVER_RESULTS_ROOT` if you changed the server result root from `$HOME/opt/nginx-bench/results/server`
 - `CLIENT_RESULTS_ROOT` if you changed the client result root from `$HOME/bench-results/client`
 - `STOP_ON_FAILURE=0` if you want the orchestrator to continue after a failed case
@@ -278,7 +296,7 @@ Run the analysis scripts on the third machine against the merged external
 results root:
 
 ```bash
-cd "$HOME/nginx-qlog"
+cd "$HOME/nginx-qlog-benchmark"
 BENCH_RESULTS_DIR=$HOME/bench-results python3 bench/summarize_results.py
 BENCH_RESULTS_DIR=$HOME/bench-results python3 bench/plot_results.py
 ```
