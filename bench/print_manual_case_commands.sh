@@ -99,15 +99,15 @@ SCENARIOS="${SCENARIOS:-master,qlog-off,quic-qlog,quic-qlog-extended,http3-qlog,
 WORKLOADS="${WORKLOADS:-small,bulk}"
 REPEATS="${REPEATS:-7}"
 
-SERVER_REPO_DIR="${SERVER_REPO_DIR:-$HOME/nginx-qlog-benchmark}"
+SERVER_REPO_DIR="${SERVER_REPO_DIR:-\$HOME/nginx-qlog-benchmark}"
 SERVER_RUN_SECONDS="${SERVER_RUN_SECONDS:-70}"
 SAMPLE_INTERVAL="${SAMPLE_INTERVAL:-1}"
 CLEAR_QLOG="${CLEAR_QLOG:-1}"
 STOP_RUNNING="${STOP_RUNNING:-1}"
 
-CLIENT_REPO_DIR="${CLIENT_REPO_DIR:-$HOME/nginx-qlog-benchmark}"
+CLIENT_REPO_DIR="${CLIENT_REPO_DIR:-\$HOME/nginx-qlog-benchmark}"
 BASE_URI="${BASE_URI:-https://84.17.61.47:8443}"
-CA_CERT_FILE="${CA_CERT_FILE:-$HOME/bench-certs/server.crt}"
+CA_CERT_FILE="${CA_CERT_FILE:-\$HOME/bench-certs/server.crt}"
 THREADS="${THREADS:-4}"
 DURATION="${DURATION:-45s}"
 WARMUP="${WARMUP:-10s}"

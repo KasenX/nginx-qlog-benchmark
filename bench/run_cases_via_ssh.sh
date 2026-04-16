@@ -131,18 +131,39 @@ manifest_append() {
 run_server_background() {
     local case_index="$1"
     local log_path="$2"
+    local server_repo_dir_line
+    local prefix_root_line
+    local server_results_root_line
+
+    if [[ -n "$SERVER_REPO_DIR" ]]; then
+        server_repo_dir_line="cd $(shell_quote "$SERVER_REPO_DIR")"
+    else
+        server_repo_dir_line='cd "${HOME}/nginx-qlog-benchmark"'
+    fi
+
+    if [[ -n "$PREFIX_ROOT" ]]; then
+        prefix_root_line="export PREFIX_ROOT=$(shell_quote "$PREFIX_ROOT")"
+    else
+        prefix_root_line='export PREFIX_ROOT="${HOME}/opt/nginx-bench"'
+    fi
+
+    if [[ -n "$SERVER_RESULTS_ROOT" ]]; then
+        server_results_root_line="export SERVER_RESULTS_ROOT=$(shell_quote "$SERVER_RESULTS_ROOT")"
+    else
+        server_results_root_line='export SERVER_RESULTS_ROOT="${PREFIX_ROOT}/results/server"'
+    fi
 
     (
         ssh "$SERVER_SSH" \
             "exec \"\${SHELL:-/bin/bash}\" -lc 'bash -s'" <<EOF
 set -euo pipefail
-cd $(shell_quote "$SERVER_REPO_DIR")
+$server_repo_dir_line
 export RUN_SET_ID=$(shell_quote "$RUN_SET_ID")
 export SCENARIOS=$(shell_quote "$SCENARIOS")
 export WORKLOADS=$(shell_quote "$WORKLOADS")
 export REPEATS=$(shell_quote "$REPEATS")
-export PREFIX_ROOT=$(shell_quote "$PREFIX_ROOT")
-export SERVER_RESULTS_ROOT=$(shell_quote "$SERVER_RESULTS_ROOT")
+$prefix_root_line
+$server_results_root_line
 export SERVER_RUN_SECONDS=$(shell_quote "$SERVER_RUN_SECONDS")
 export TAIL_SECONDS=$(shell_quote "$TAIL_SECONDS")
 export SAMPLE_INTERVAL=$(shell_quote "$SAMPLE_INTERVAL")
@@ -158,8 +179,15 @@ EOF
 run_client_foreground() {
     local case_index="$1"
     local log_path="$2"
+    local client_repo_dir_line
     local client_results_root_line
     local ca_cert_file_line
+
+    if [[ -n "$CLIENT_REPO_DIR" ]]; then
+        client_repo_dir_line="cd $(shell_quote "$CLIENT_REPO_DIR")"
+    else
+        client_repo_dir_line='cd "${HOME}/nginx-qlog-benchmark"'
+    fi
 
     if [[ -n "$CLIENT_RESULTS_ROOT" ]]; then
         client_results_root_line="export CLIENT_RESULTS_ROOT=$(shell_quote "$CLIENT_RESULTS_ROOT")"
@@ -176,7 +204,7 @@ run_client_foreground() {
     ssh "$CLIENT_SSH" \
         "exec \"\${SHELL:-/bin/bash}\" -lc 'bash -s'" <<EOF 2>&1 | tee "$log_path"
 set -euo pipefail
-cd $(shell_quote "$CLIENT_REPO_DIR")
+$client_repo_dir_line
 export RUN_SET_ID=$(shell_quote "$RUN_SET_ID")
 export SCENARIOS=$(shell_quote "$SCENARIOS")
 export WORKLOADS=$(shell_quote "$WORKLOADS")
@@ -279,11 +307,11 @@ REPEATS="${REPEATS:-7}"
 
 SERVER_SSH="${SERVER_SSH:-}"
 CLIENT_SSH="${CLIENT_SSH:-}"
-SERVER_REPO_DIR="${SERVER_REPO_DIR:-$HOME/nginx-qlog-benchmark}"
-CLIENT_REPO_DIR="${CLIENT_REPO_DIR:-$HOME/nginx-qlog-benchmark}"
+SERVER_REPO_DIR="${SERVER_REPO_DIR:-}"
+CLIENT_REPO_DIR="${CLIENT_REPO_DIR:-}"
 
-PREFIX_ROOT="${PREFIX_ROOT:-$HOME/opt/nginx-bench}"
-SERVER_RESULTS_ROOT="${SERVER_RESULTS_ROOT:-$PREFIX_ROOT/results/server}"
+PREFIX_ROOT="${PREFIX_ROOT:-}"
+SERVER_RESULTS_ROOT="${SERVER_RESULTS_ROOT:-}"
 SERVER_RUN_SECONDS="${SERVER_RUN_SECONDS:-70}"
 TAIL_SECONDS="${TAIL_SECONDS:-0}"
 SAMPLE_INTERVAL="${SAMPLE_INTERVAL:-1}"
