@@ -5,10 +5,9 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Build and install three NGINX variants from this repository:
+Build and install two NGINX variants from this repository:
   1. master
-  2. feature/quic-qlog without --with-quic_qlog_module
-  3. feature/quic-qlog with    --with-quic_qlog_module
+  2. feature/quic-qlog with --with-quic_qlog_module
 
 Run this script from any working tree of the nginx-qlog repository on Debian.
 
@@ -175,11 +174,9 @@ JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')}"
 CC_OPT="${CC_OPT:--O2 -fno-omit-frame-pointer}"
 
 MASTER_SRC="$SRC_ROOT/master"
-QLOG_NOMODULE_SRC="$SRC_ROOT/qlog-nomodule"
 QLOG_SRC="$SRC_ROOT/qlog"
 
 MASTER_PREFIX="$PREFIX_ROOT/master"
-QLOG_NOMODULE_PREFIX="$PREFIX_ROOT/qlog-nomodule"
 QLOG_PREFIX="$PREFIX_ROOT/qlog"
 
 mkdir -p "$SRC_ROOT" "$PREFIX_ROOT"
@@ -196,19 +193,15 @@ git -C "$REPO_ROOT" rev-parse --verify "$QLOG_REF" >/dev/null \
     || die "cannot resolve ref: $QLOG_REF"
 
 ensure_worktree "$MASTER_SRC" "$MASTER_REF"
-ensure_worktree "$QLOG_NOMODULE_SRC" "$QLOG_REF"
 ensure_worktree "$QLOG_SRC" "$QLOG_REF"
 
 configure_and_install "master" "$MASTER_SRC" "$MASTER_PREFIX"
-configure_and_install "qlog-nomodule" "$QLOG_NOMODULE_SRC" "$QLOG_NOMODULE_PREFIX"
 configure_and_install "qlog" "$QLOG_SRC" "$QLOG_PREFIX" --with-quic_qlog_module
 
 log "Installed variants:"
 printf '  %-15s %s\n' "master" "$MASTER_PREFIX/sbin/nginx"
-printf '  %-15s %s\n' "qlog-nomodule" "$QLOG_NOMODULE_PREFIX/sbin/nginx"
 printf '  %-15s %s\n' "qlog" "$QLOG_PREFIX/sbin/nginx"
 
 log "Build metadata:"
 printf '  %s\n' "$MASTER_PREFIX/BUILD_INFO.txt"
-printf '  %s\n' "$QLOG_NOMODULE_PREFIX/BUILD_INFO.txt"
 printf '  %s\n' "$QLOG_PREFIX/BUILD_INFO.txt"

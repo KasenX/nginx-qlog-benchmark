@@ -26,7 +26,6 @@ bench_ensure_cmd() {
 bench_list_scenarios() {
     cat <<'EOF'
 master
-qlog-nomodule
 qlog-off
 qlog-on-ram
 qlog-on-disk
@@ -70,10 +69,6 @@ bench_load_scenario() {
     case "$scenario" in
         master)
             BENCH_SCENARIO_PREFIX="$prefix_root/master"
-            BENCH_SCENARIO_CONFIG="$BENCH_SCENARIO_PREFIX/conf/bench-h3.conf"
-            ;;
-        qlog-nomodule)
-            BENCH_SCENARIO_PREFIX="$prefix_root/qlog-nomodule"
             BENCH_SCENARIO_CONFIG="$BENCH_SCENARIO_PREFIX/conf/bench-h3.conf"
             ;;
         qlog-off)

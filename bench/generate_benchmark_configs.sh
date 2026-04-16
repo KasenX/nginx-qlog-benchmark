@@ -9,7 +9,7 @@ Generate minimal HTTP/3 benchmark configs for the nginx benchmark installs.
 
 By default this script expects the three installs created by
 bench/install_nginx_variants.sh under:
-  $HOME/opt/nginx-bench/{master,qlog-nomodule,qlog}
+  $HOME/opt/nginx-bench/{master,qlog}
 
 Run `sudo bench/prepare_benchmark_vm.sh` first if you want the standard
 benchmark qlog paths:
@@ -20,7 +20,6 @@ It creates:
   - shared benchmark payloads
   - a self-signed certificate
   - one config for master
-  - one config for qlog-nomodule
   - three configs for qlog: off, on-ram, on-disk
 
 Environment overrides:
@@ -258,21 +257,18 @@ Qlog paths:
 
 Config files:
   master:         $MASTER_PREFIX/conf/bench-h3.conf
-  qlog-nomodule:  $QLOG_NOMODULE_PREFIX/conf/bench-h3.conf
   qlog-off:       $QLOG_PREFIX/conf/bench-h3-qlog-off.conf
   qlog-on-ram:    $QLOG_PREFIX/conf/bench-h3-qlog-on-ram.conf
   qlog-on-disk:   $QLOG_PREFIX/conf/bench-h3-qlog-on-disk.conf
 
 Start commands:
   $MASTER_PREFIX/sbin/nginx -c $MASTER_PREFIX/conf/bench-h3.conf
-  $QLOG_NOMODULE_PREFIX/sbin/nginx -c $QLOG_NOMODULE_PREFIX/conf/bench-h3.conf
   $QLOG_PREFIX/sbin/nginx -c $QLOG_PREFIX/conf/bench-h3-qlog-off.conf
   $QLOG_PREFIX/sbin/nginx -c $QLOG_PREFIX/conf/bench-h3-qlog-on-ram.conf
   $QLOG_PREFIX/sbin/nginx -c $QLOG_PREFIX/conf/bench-h3-qlog-on-disk.conf
 
 Stop commands:
   $MASTER_PREFIX/sbin/nginx -c $MASTER_PREFIX/conf/bench-h3.conf -s quit
-  $QLOG_NOMODULE_PREFIX/sbin/nginx -c $QLOG_NOMODULE_PREFIX/conf/bench-h3.conf -s quit
   $QLOG_PREFIX/sbin/nginx -c $QLOG_PREFIX/conf/bench-h3-qlog-off.conf -s quit
   $QLOG_PREFIX/sbin/nginx -c $QLOG_PREFIX/conf/bench-h3-qlog-on-ram.conf -s quit
   $QLOG_PREFIX/sbin/nginx -c $QLOG_PREFIX/conf/bench-h3-qlog-on-disk.conf -s quit
@@ -301,11 +297,9 @@ QLOG_RAM_PATH_REQUESTED="${QLOG_RAM_PATH:-/mnt/qlog-ram}"
 QLOG_DISK_PATH="${QLOG_DISK_PATH:-/var/lib/nginx-qlog}"
 
 MASTER_PREFIX="$PREFIX_ROOT/master"
-QLOG_NOMODULE_PREFIX="$PREFIX_ROOT/qlog-nomodule"
 QLOG_PREFIX="$PREFIX_ROOT/qlog"
 
 [[ -x "$MASTER_PREFIX/sbin/nginx" ]] || die "missing nginx binary: $MASTER_PREFIX/sbin/nginx"
-[[ -x "$QLOG_NOMODULE_PREFIX/sbin/nginx" ]] || die "missing nginx binary: $QLOG_NOMODULE_PREFIX/sbin/nginx"
 [[ -x "$QLOG_PREFIX/sbin/nginx" ]] || die "missing nginx binary: $QLOG_PREFIX/sbin/nginx"
 
 if [[ $LISTEN_PORT -lt 1024 && ${EUID} -ne 0 ]]; then
@@ -319,7 +313,6 @@ ensure_certificate
 
 log "Writing benchmark configs"
 write_config "$MASTER_PREFIX" "bench-h3.conf" ""
-write_config "$QLOG_NOMODULE_PREFIX" "bench-h3.conf" ""
 write_config "$QLOG_PREFIX" "bench-h3-qlog-off.conf" "        quic_qlog off;"
 write_config "$QLOG_PREFIX" "bench-h3-qlog-on-ram.conf" "$(cat <<EOF
         quic_qlog on;
@@ -340,7 +333,6 @@ EOF
 
 log "Validating configs with nginx -t"
 validate_config "$MASTER_PREFIX/sbin/nginx" "$MASTER_PREFIX/conf/bench-h3.conf"
-validate_config "$QLOG_NOMODULE_PREFIX/sbin/nginx" "$QLOG_NOMODULE_PREFIX/conf/bench-h3.conf"
 validate_config "$QLOG_PREFIX/sbin/nginx" "$QLOG_PREFIX/conf/bench-h3-qlog-off.conf"
 validate_config "$QLOG_PREFIX/sbin/nginx" "$QLOG_PREFIX/conf/bench-h3-qlog-on-ram.conf"
 validate_config "$QLOG_PREFIX/sbin/nginx" "$QLOG_PREFIX/conf/bench-h3-qlog-on-disk.conf"
@@ -349,7 +341,6 @@ write_summary
 
 log "Generated configs summary: $SUMMARY_PATH"
 printf '  %s\n' "$MASTER_PREFIX/conf/bench-h3.conf"
-printf '  %s\n' "$QLOG_NOMODULE_PREFIX/conf/bench-h3.conf"
 printf '  %s\n' "$QLOG_PREFIX/conf/bench-h3-qlog-off.conf"
 printf '  %s\n' "$QLOG_PREFIX/conf/bench-h3-qlog-on-ram.conf"
 printf '  %s\n' "$QLOG_PREFIX/conf/bench-h3-qlog-on-disk.conf"
