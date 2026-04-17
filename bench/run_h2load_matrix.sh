@@ -17,11 +17,11 @@ Usage:
 
 Examples:
   BASE_URI=https://84.17.61.47:8443 TLS_INSECURE=1 \\
-    RUN_ID=pilot-001 bench/run_h2load_matrix.sh qlog-off
+    RUN_ID=pilot-001 bench/run_h2load_matrix.sh quic-qlog
 
   BASE_URI=https://streaming-dev-jj-01-84-17-61-47.cdn77.eu:8443 \\
   CONNECT_TO=84.17.61.47:8443 SNI=streaming-dev-jj-01-84-17-61-47.cdn77.eu \\
-  RUN_ID=pilot-002 bench/run_h2load_matrix.sh quic-qlog
+  RUN_ID=pilot-002 bench/run_h2load_matrix.sh quic-qlog-no-buffer
 
 Environment overrides:
   H2LOAD_BIN=h2load
@@ -32,7 +32,7 @@ Environment overrides:
   CLIENTS=20,100,250
   STREAMS=1
   THREADS=4
-  REPEATS=7
+  REPEATS=3
   DURATION=60s
   WARMUP=10s
   INTER_RUN_SLEEP=5
@@ -329,7 +329,7 @@ REQUEST_PATHS="${REQUEST_PATHS:-16k.bin,1m.bin}"
 CLIENTS="${CLIENTS:-20,100,250}"
 STREAMS="${STREAMS:-1}"
 THREADS="${THREADS:-4}"
-REPEATS="${REPEATS:-7}"
+REPEATS="${REPEATS:-3}"
 DURATION="${DURATION:-60s}"
 WARMUP="${WARMUP:-10s}"
 INTER_RUN_SLEEP="${INTER_RUN_SLEEP:-5}"

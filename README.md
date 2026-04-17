@@ -317,6 +317,5 @@ BENCH_RESULTS_DIR=$HOME/bench-results python3 bench/summarize_results.py
 BENCH_RESULTS_DIR=$HOME/bench-results python3 bench/plot_results.py
 ```
 
-The default analysis baseline is the upstream `master` variant. Normalized
-comparison tables and plots are therefore expressed relative to `master`,
-while `qlog-off` remains available in the summaries as a secondary comparison.
+The default analysis baseline is `quic-qlog`. Normalized comparison tables and
+plots are therefore expressed relative to `quic-qlog`.

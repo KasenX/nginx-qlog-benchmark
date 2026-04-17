@@ -23,29 +23,19 @@ PLOTS_DIR = Path(
     os.environ.get("BENCH_PLOTS_DIR", str(ANALYSIS_DIR / "plots"))
 ).expanduser()
 
-BASELINE_SCENARIO = "master"
+BASELINE_SCENARIO = "quic-qlog"
 SCENARIO_ORDER = [
-    "master",
-    "qlog-off",
     "quic-qlog",
-    "quic-qlog-extended",
-    "http3-qlog",
-    "qlog-on-disk",
+    "quic-qlog-no-buffer",
 ]
-RAM_QLOG_SCENARIOS = {"quic-qlog", "quic-qlog-extended", "http3-qlog"}
+RAM_QLOG_SCENARIOS: set[str] = set()
 QLOG_SCENARIOS = [
     "quic-qlog",
-    "quic-qlog-extended",
-    "http3-qlog",
-    "qlog-on-disk",
+    "quic-qlog-no-buffer",
 ]
 SCENARIO_COLORS = {
-    "master": "#3b4252",
-    "qlog-off": "#5e81ac",
-    "quic-qlog": "#d08700",
-    "quic-qlog-extended": "#b48ead",
-    "http3-qlog": "#a3be8c",
-    "qlog-on-disk": "#bf616a",
+    "quic-qlog": "#5e81ac",
+    "quic-qlog-no-buffer": "#bf616a",
 }
 WORKLOAD_ORDER = ["small", "bulk"]
 WORKLOAD_LABELS = {
@@ -900,13 +890,13 @@ def main() -> None:
     labels, grouped = build_normalized_grouped_values(
         cell_rows,
         workload_rows,
-        metric_column="delta_req_per_s_vs_master_pct",
+        metric_column="delta_req_per_s_vs_baseline_pct",
     )
     draw_grouped_bar_chart(
         PLOTS_DIR / "throughput_normalized.svg",
         categories=labels,
         grouped_values=grouped,
-        ylabel="Throughput (% of master)",
+        ylabel=f"Throughput (% of {BASELINE_SCENARIO})",
         y_ticks=[0, 25, 50, 75, 100, 125],
         y_max=125,
         scenarios=SCENARIO_ORDER,
@@ -918,13 +908,13 @@ def main() -> None:
     labels, grouped = build_normalized_grouped_values(
         cell_rows,
         workload_rows,
-        metric_column="delta_request_p95_vs_master_pct",
+        metric_column="delta_request_p95_vs_baseline_pct",
     )
     draw_grouped_bar_chart(
         PLOTS_DIR / "latency_p95_normalized.svg",
         categories=labels,
         grouped_values=grouped,
-        ylabel="p95 latency (% of master)",
+        ylabel=f"p95 latency (% of {BASELINE_SCENARIO})",
         y_ticks=[0, 25, 50, 75, 100, 125, 150],
         y_max=150,
         scenarios=SCENARIO_ORDER,
@@ -936,13 +926,13 @@ def main() -> None:
     labels, grouped = build_normalized_grouped_values(
         cell_rows,
         workload_rows,
-        metric_column="delta_server_cpu_busy_vs_master_pct",
+        metric_column="delta_server_cpu_busy_vs_baseline_pct",
     )
     draw_grouped_bar_chart(
         PLOTS_DIR / "cpu_busy_normalized.svg",
         categories=labels,
         grouped_values=grouped,
-        ylabel="server CPU busy (% of master)",
+        ylabel=f"server CPU busy (% of {BASELINE_SCENARIO})",
         y_ticks=[0, 25, 50, 75, 100, 125, 150],
         y_max=150,
         scenarios=SCENARIO_ORDER,
@@ -972,13 +962,13 @@ def main() -> None:
     labels, grouped = build_normalized_grouped_values(
         cell_rows,
         workload_rows,
-        metric_column="delta_server_cpu_busy_per_krps_vs_master_pct",
+        metric_column="delta_server_cpu_busy_per_krps_vs_baseline_pct",
     )
     draw_grouped_bar_chart(
         PLOTS_DIR / "cpu_efficiency_normalized.svg",
         categories=labels,
         grouped_values=grouped,
-        ylabel="CPU busy per 1000 req/s (% of master)",
+        ylabel=f"CPU busy per 1000 req/s (% of {BASELINE_SCENARIO})",
         y_ticks=[0, 25, 50, 75, 100, 125, 150],
         y_max=150,
         scenarios=SCENARIO_ORDER,
@@ -1031,11 +1021,11 @@ def main() -> None:
     index_lines = [
         "# Generated Plots",
         "",
-        "- `throughput_normalized.{svg,pdf}`: grouped bar chart of median request rate normalized to `master`",
-        "- `latency_p95_normalized.{svg,pdf}`: grouped bar chart of median p95 latency normalized to `master`",
-        "- `cpu_busy_normalized.{svg,pdf}`: grouped bar chart of median server CPU busy normalized to `master`",
+        f"- `throughput_normalized.{{svg,pdf}}`: grouped bar chart of median request rate normalized to `{BASELINE_SCENARIO}`",
+        f"- `latency_p95_normalized.{{svg,pdf}}`: grouped bar chart of median p95 latency normalized to `{BASELINE_SCENARIO}`",
+        f"- `cpu_busy_normalized.{{svg,pdf}}`: grouped bar chart of median server CPU busy normalized to `{BASELINE_SCENARIO}`",
         "- `cpu_busy_absolute.{svg,pdf}`: grouped bar chart of median absolute server CPU busy percentage",
-        "- `cpu_efficiency_normalized.{svg,pdf}`: grouped bar chart of median CPU busy per 1000 req/s normalized to `master`",
+        f"- `cpu_efficiency_normalized.{{svg,pdf}}`: grouped bar chart of median CPU busy per 1000 req/s normalized to `{BASELINE_SCENARIO}`",
         "- `qlog_bytes_per_request.{svg,pdf}`: qlog volume per successful request for each qlog-writing scenario",
         "- `qlog_total_bytes.{svg,pdf}`: total qlog volume per workload run for each qlog-writing scenario",
         "- `throughput_repeats.{svg,pdf}`: repeat-level req/s scatter with median markers",

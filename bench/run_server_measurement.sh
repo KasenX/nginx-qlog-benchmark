@@ -30,8 +30,8 @@ Environment overrides:
   STOP_RUNNING=1
 
 Examples:
-  RUN_ID=pilot-001 RUN_SECONDS=75 bench/run_server_measurement.sh qlog-off
-  RUN_ID=pilot-002 RUN_SECONDS=75 bench/run_server_measurement.sh quic-qlog
+  RUN_ID=pilot-001 RUN_SECONDS=75 bench/run_server_measurement.sh quic-qlog
+  RUN_ID=pilot-002 RUN_SECONDS=75 bench/run_server_measurement.sh quic-qlog-no-buffer
 
 Notes:
   - Start this on the server VM before the client-side h2load run.

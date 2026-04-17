@@ -26,8 +26,8 @@ FINISHED_RE = re.compile(
 )
 TIME_LINE_RE = re.compile(r"^(time for request|time to 1st byte):\s+(.+)$")
 RTT_LINE_RE = re.compile(r"^(smoothed RTT|min RTT):\s+(.+)$")
-BASELINE_SCENARIO = "master"
-RAM_QLOG_SCENARIOS = {"quic-qlog", "quic-qlog-extended", "http3-qlog"}
+BASELINE_SCENARIO = "quic-qlog"
+RAM_QLOG_SCENARIOS: set[str] = set()
 
 
 @dataclass
@@ -699,49 +699,34 @@ def main() -> None:
         for row in cell_rows
         if row["scenario"] == BASELINE_SCENARIO
     }
-    qlog_off_map = {
-        (row["workload"], row["path"], row["clients"], row["streams"]): row
-        for row in cell_rows
-        if row["scenario"] == "qlog-off"
-    }
-    quic_qlog_map = {
-        (row["workload"], row["path"], row["clients"], row["streams"]): row
-        for row in cell_rows
-        if row["scenario"] == "quic-qlog"
-    }
-
     comparison_rows: List[Dict[str, object]] = []
     for row in cell_rows:
         key = (row["workload"], row["path"], row["clients"], row["streams"])
         baseline = baseline_map.get(key)
-        quic_qlog = quic_qlog_map.get(key)
         baseline_req_per_s = baseline["median_req_per_s"] if baseline else 0.0
         baseline_p95 = baseline["median_request_p95_us"] if baseline else 0.0
         baseline_cpu_busy = baseline["median_server_cpu_busy_pct"] if baseline else 0.0
         baseline_cpu_per_krps = (
             baseline["median_server_cpu_busy_per_krps"] if baseline else 0.0
         )
-        qlog_off = qlog_off_map.get(key)
-        qlog_off_req_per_s = qlog_off["median_req_per_s"] if qlog_off else 0.0
-        quic_qlog_req_per_s = quic_qlog["median_req_per_s"] if quic_qlog else 0.0
 
-        delta_vs_master_req_pct = (
+        delta_vs_baseline_req_pct = (
             ((row["median_req_per_s"] - baseline_req_per_s) / baseline_req_per_s) * 100.0
             if baseline_req_per_s
             else 0.0
         )
-        delta_vs_master_p95_pct = (
+        delta_vs_baseline_p95_pct = (
             ((row["median_request_p95_us"] - baseline_p95) / baseline_p95) * 100.0
             if baseline_p95
             else 0.0
         )
-        delta_vs_master_cpu_busy_pct = (
+        delta_vs_baseline_cpu_busy_pct = (
             ((row["median_server_cpu_busy_pct"] - baseline_cpu_busy) / baseline_cpu_busy)
             * 100.0
             if baseline_cpu_busy
             else 0.0
         )
-        delta_vs_master_cpu_per_krps_pct = (
+        delta_vs_baseline_cpu_per_krps_pct = (
             (
                 (
                     row["median_server_cpu_busy_per_krps"]
@@ -753,26 +738,14 @@ def main() -> None:
             if baseline_cpu_per_krps
             else 0.0
         )
-        delta_vs_qlog_off_req_pct = (
-            ((row["median_req_per_s"] - qlog_off_req_per_s) / qlog_off_req_per_s) * 100.0
-            if qlog_off_req_per_s
-            else 0.0
-        )
-        delta_vs_quic_qlog_req_pct = (
-            ((row["median_req_per_s"] - quic_qlog_req_per_s) / quic_qlog_req_per_s) * 100.0
-            if quic_qlog_req_per_s
-            else 0.0
-        )
 
         comparison_rows.append(
             {
                 **row,
-                "delta_req_per_s_vs_master_pct": delta_vs_master_req_pct,
-                "delta_request_p95_vs_master_pct": delta_vs_master_p95_pct,
-                "delta_server_cpu_busy_vs_master_pct": delta_vs_master_cpu_busy_pct,
-                "delta_server_cpu_busy_per_krps_vs_master_pct": delta_vs_master_cpu_per_krps_pct,
-                "delta_req_per_s_vs_qlog_off_pct": delta_vs_qlog_off_req_pct,
-                "delta_req_per_s_vs_quic_qlog_pct": delta_vs_quic_qlog_req_pct,
+                "delta_req_per_s_vs_baseline_pct": delta_vs_baseline_req_pct,
+                "delta_request_p95_vs_baseline_pct": delta_vs_baseline_p95_pct,
+                "delta_server_cpu_busy_vs_baseline_pct": delta_vs_baseline_cpu_busy_pct,
+                "delta_server_cpu_busy_per_krps_vs_baseline_pct": delta_vs_baseline_cpu_per_krps_pct,
             }
         )
 
@@ -924,12 +897,10 @@ def main() -> None:
             "median_server_cpu_steal_pct",
             "median_server_cpu_busy_per_krps",
             "total_request_succeeded",
-            "delta_req_per_s_vs_master_pct",
-            "delta_request_p95_vs_master_pct",
-            "delta_server_cpu_busy_vs_master_pct",
-            "delta_server_cpu_busy_per_krps_vs_master_pct",
-            "delta_req_per_s_vs_qlog_off_pct",
-            "delta_req_per_s_vs_quic_qlog_pct",
+            "delta_req_per_s_vs_baseline_pct",
+            "delta_request_p95_vs_baseline_pct",
+            "delta_server_cpu_busy_vs_baseline_pct",
+            "delta_server_cpu_busy_per_krps_vs_baseline_pct",
         ],
     )
 

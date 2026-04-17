@@ -28,9 +28,9 @@ Required environment for run/range/all:
 
 Case-matrix selection:
   RUN_SET_ID=thesis-main
-  SCENARIOS=master,qlog-off,quic-qlog,quic-qlog-extended,http3-qlog,qlog-on-disk
+  SCENARIOS=quic-qlog,quic-qlog-no-buffer
   WORKLOADS=small,bulk
-  REPEATS=7
+  REPEATS=3
 
 Remote repo locations:
   SERVER_REPO_DIR=$HOME/nginx-qlog-benchmark
@@ -301,9 +301,9 @@ if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
 fi
 
 RUN_SET_ID="${RUN_SET_ID:-$(date -u '+%Y-%m-%d-orchestrated')}"
-SCENARIOS="${SCENARIOS:-master,qlog-off,quic-qlog,quic-qlog-extended,http3-qlog,qlog-on-disk}"
+SCENARIOS="${SCENARIOS:-quic-qlog,quic-qlog-no-buffer}"
 WORKLOADS="${WORKLOADS:-small,bulk}"
-REPEATS="${REPEATS:-7}"
+REPEATS="${REPEATS:-3}"
 
 SERVER_SSH="${SERVER_SSH:-}"
 CLIENT_SSH="${CLIENT_SSH:-}"

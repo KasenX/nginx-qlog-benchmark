@@ -7,9 +7,9 @@ usage() {
     cat <<'EOF'
 Generate minimal HTTP/3 benchmark configs for the nginx benchmark installs.
 
-By default this script expects the four installs created by
+By default this script expects the two installs created by
 bench/install_nginx_variants.sh under:
-  $HOME/opt/nginx-bench/{master,quic-qlog,quic-qlog-extended,http3-qlog}
+  $HOME/opt/nginx-bench/{quic-qlog,quic-qlog-no-buffer}
 
 Run `sudo bench/prepare_benchmark_vm.sh` first if you want the standard
 benchmark qlog paths:
@@ -19,11 +19,8 @@ benchmark qlog paths:
 It creates:
   - shared benchmark payloads
   - a self-signed certificate
-  - one config for master
-  - two configs for quic-qlog: off, on-disk
-  - one RAM qlog config for quic-qlog
-  - one RAM qlog config for quic-qlog-extended
-  - one RAM qlog config for http3-qlog
+  - one on-disk qlog config for quic-qlog
+  - one on-disk qlog config for quic-qlog-no-buffer
 
 Environment overrides:
   PREFIX_ROOT=$HOME/opt/nginx-bench
@@ -259,28 +256,16 @@ Qlog paths:
   note: $QLOG_RAM_NOTE
 
 Config files:
-  master:         $MASTER_PREFIX/conf/bench-h3.conf
-  qlog-off:       $QUIC_QLOG_PREFIX/conf/bench-h3-qlog-off.conf
-  quic-qlog:      $QUIC_QLOG_PREFIX/conf/bench-h3-quic-qlog.conf
-  quic-qlog-extended: $QUIC_QLOG_EXTENDED_PREFIX/conf/bench-h3-quic-qlog-extended.conf
-  http3-qlog:     $HTTP3_QLOG_PREFIX/conf/bench-h3-http3-qlog.conf
-  qlog-on-disk:   $QUIC_QLOG_PREFIX/conf/bench-h3-qlog-on-disk.conf
+  quic-qlog:           $QUIC_QLOG_PREFIX/conf/bench-h3-quic-qlog-on-disk.conf
+  quic-qlog-no-buffer: $QUIC_QLOG_NO_BUFFER_PREFIX/conf/bench-h3-quic-qlog-no-buffer-on-disk.conf
 
 Start commands:
-  $MASTER_PREFIX/sbin/nginx -c $MASTER_PREFIX/conf/bench-h3.conf
-  $QUIC_QLOG_PREFIX/sbin/nginx -c $QUIC_QLOG_PREFIX/conf/bench-h3-qlog-off.conf
-  $QUIC_QLOG_PREFIX/sbin/nginx -c $QUIC_QLOG_PREFIX/conf/bench-h3-quic-qlog.conf
-  $QUIC_QLOG_EXTENDED_PREFIX/sbin/nginx -c $QUIC_QLOG_EXTENDED_PREFIX/conf/bench-h3-quic-qlog-extended.conf
-  $HTTP3_QLOG_PREFIX/sbin/nginx -c $HTTP3_QLOG_PREFIX/conf/bench-h3-http3-qlog.conf
-  $QUIC_QLOG_PREFIX/sbin/nginx -c $QUIC_QLOG_PREFIX/conf/bench-h3-qlog-on-disk.conf
+  $QUIC_QLOG_PREFIX/sbin/nginx -c $QUIC_QLOG_PREFIX/conf/bench-h3-quic-qlog-on-disk.conf
+  $QUIC_QLOG_NO_BUFFER_PREFIX/sbin/nginx -c $QUIC_QLOG_NO_BUFFER_PREFIX/conf/bench-h3-quic-qlog-no-buffer-on-disk.conf
 
 Stop commands:
-  $MASTER_PREFIX/sbin/nginx -c $MASTER_PREFIX/conf/bench-h3.conf -s quit
-  $QUIC_QLOG_PREFIX/sbin/nginx -c $QUIC_QLOG_PREFIX/conf/bench-h3-qlog-off.conf -s quit
-  $QUIC_QLOG_PREFIX/sbin/nginx -c $QUIC_QLOG_PREFIX/conf/bench-h3-quic-qlog.conf -s quit
-  $QUIC_QLOG_EXTENDED_PREFIX/sbin/nginx -c $QUIC_QLOG_EXTENDED_PREFIX/conf/bench-h3-quic-qlog-extended.conf -s quit
-  $HTTP3_QLOG_PREFIX/sbin/nginx -c $HTTP3_QLOG_PREFIX/conf/bench-h3-http3-qlog.conf -s quit
-  $QUIC_QLOG_PREFIX/sbin/nginx -c $QUIC_QLOG_PREFIX/conf/bench-h3-qlog-on-disk.conf -s quit
+  $QUIC_QLOG_PREFIX/sbin/nginx -c $QUIC_QLOG_PREFIX/conf/bench-h3-quic-qlog-on-disk.conf -s quit
+  $QUIC_QLOG_NO_BUFFER_PREFIX/sbin/nginx -c $QUIC_QLOG_NO_BUFFER_PREFIX/conf/bench-h3-quic-qlog-no-buffer-on-disk.conf -s quit
 
 Smoke test example:
   curl -k --http3-only https://$CERT_HOST:$LISTEN_PORT/healthz
@@ -305,15 +290,11 @@ CERT_IP="${CERT_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
 QLOG_RAM_PATH_REQUESTED="${QLOG_RAM_PATH:-/mnt/qlog-ram}"
 QLOG_DISK_PATH="${QLOG_DISK_PATH:-/var/lib/nginx-qlog}"
 
-MASTER_PREFIX="$PREFIX_ROOT/master"
 QUIC_QLOG_PREFIX="$PREFIX_ROOT/quic-qlog"
-QUIC_QLOG_EXTENDED_PREFIX="$PREFIX_ROOT/quic-qlog-extended"
-HTTP3_QLOG_PREFIX="$PREFIX_ROOT/http3-qlog"
+QUIC_QLOG_NO_BUFFER_PREFIX="$PREFIX_ROOT/quic-qlog-no-buffer"
 
-[[ -x "$MASTER_PREFIX/sbin/nginx" ]] || die "missing nginx binary: $MASTER_PREFIX/sbin/nginx"
 [[ -x "$QUIC_QLOG_PREFIX/sbin/nginx" ]] || die "missing nginx binary: $QUIC_QLOG_PREFIX/sbin/nginx"
-[[ -x "$QUIC_QLOG_EXTENDED_PREFIX/sbin/nginx" ]] || die "missing nginx binary: $QUIC_QLOG_EXTENDED_PREFIX/sbin/nginx"
-[[ -x "$HTTP3_QLOG_PREFIX/sbin/nginx" ]] || die "missing nginx binary: $HTTP3_QLOG_PREFIX/sbin/nginx"
+[[ -x "$QUIC_QLOG_NO_BUFFER_PREFIX/sbin/nginx" ]] || die "missing nginx binary: $QUIC_QLOG_NO_BUFFER_PREFIX/sbin/nginx"
 
 if [[ $LISTEN_PORT -lt 1024 && ${EUID} -ne 0 ]]; then
     die "LISTEN_PORT=$LISTEN_PORT requires root or CAP_NET_BIND_SERVICE; use an unprivileged port like 8443"
@@ -325,33 +306,15 @@ write_payloads
 ensure_certificate
 
 log "Writing benchmark configs"
-write_config "$MASTER_PREFIX" "bench-h3.conf" ""
-write_config "$QUIC_QLOG_PREFIX" "bench-h3-qlog-off.conf" "        quic_qlog off;"
-write_config "$QUIC_QLOG_PREFIX" "bench-h3-quic-qlog.conf" "$(cat <<EOF
+write_config "$QUIC_QLOG_PREFIX" "bench-h3-quic-qlog-on-disk.conf" "$(cat <<EOF
         quic_qlog on;
-        quic_qlog_path $QLOG_RAM_PATH_SELECTED;
+        quic_qlog_path $QLOG_DISK_PATH;
         quic_qlog_sample 1;
         quic_qlog_importance base;
         quic_qlog_max_size 0;
 EOF
 )"
-write_config "$QUIC_QLOG_EXTENDED_PREFIX" "bench-h3-quic-qlog-extended.conf" "$(cat <<EOF
-        quic_qlog on;
-        quic_qlog_path $QLOG_RAM_PATH_SELECTED;
-        quic_qlog_sample 1;
-        quic_qlog_importance base;
-        quic_qlog_max_size 0;
-EOF
-)"
-write_config "$HTTP3_QLOG_PREFIX" "bench-h3-http3-qlog.conf" "$(cat <<EOF
-        quic_qlog on;
-        quic_qlog_path $QLOG_RAM_PATH_SELECTED;
-        quic_qlog_sample 1;
-        quic_qlog_importance base;
-        quic_qlog_max_size 0;
-EOF
-)"
-write_config "$QUIC_QLOG_PREFIX" "bench-h3-qlog-on-disk.conf" "$(cat <<EOF
+write_config "$QUIC_QLOG_NO_BUFFER_PREFIX" "bench-h3-quic-qlog-no-buffer-on-disk.conf" "$(cat <<EOF
         quic_qlog on;
         quic_qlog_path $QLOG_DISK_PATH;
         quic_qlog_sample 1;
@@ -361,19 +324,11 @@ EOF
 )"
 
 log "Validating configs with nginx -t"
-validate_config "$MASTER_PREFIX/sbin/nginx" "$MASTER_PREFIX/conf/bench-h3.conf"
-validate_config "$QUIC_QLOG_PREFIX/sbin/nginx" "$QUIC_QLOG_PREFIX/conf/bench-h3-qlog-off.conf"
-validate_config "$QUIC_QLOG_PREFIX/sbin/nginx" "$QUIC_QLOG_PREFIX/conf/bench-h3-quic-qlog.conf"
-validate_config "$QUIC_QLOG_EXTENDED_PREFIX/sbin/nginx" "$QUIC_QLOG_EXTENDED_PREFIX/conf/bench-h3-quic-qlog-extended.conf"
-validate_config "$HTTP3_QLOG_PREFIX/sbin/nginx" "$HTTP3_QLOG_PREFIX/conf/bench-h3-http3-qlog.conf"
-validate_config "$QUIC_QLOG_PREFIX/sbin/nginx" "$QUIC_QLOG_PREFIX/conf/bench-h3-qlog-on-disk.conf"
+validate_config "$QUIC_QLOG_PREFIX/sbin/nginx" "$QUIC_QLOG_PREFIX/conf/bench-h3-quic-qlog-on-disk.conf"
+validate_config "$QUIC_QLOG_NO_BUFFER_PREFIX/sbin/nginx" "$QUIC_QLOG_NO_BUFFER_PREFIX/conf/bench-h3-quic-qlog-no-buffer-on-disk.conf"
 
 write_summary
 
 log "Generated configs summary: $SUMMARY_PATH"
-printf '  %s\n' "$MASTER_PREFIX/conf/bench-h3.conf"
-printf '  %s\n' "$QUIC_QLOG_PREFIX/conf/bench-h3-qlog-off.conf"
-printf '  %s\n' "$QUIC_QLOG_PREFIX/conf/bench-h3-quic-qlog.conf"
-printf '  %s\n' "$QUIC_QLOG_EXTENDED_PREFIX/conf/bench-h3-quic-qlog-extended.conf"
-printf '  %s\n' "$HTTP3_QLOG_PREFIX/conf/bench-h3-http3-qlog.conf"
-printf '  %s\n' "$QUIC_QLOG_PREFIX/conf/bench-h3-qlog-on-disk.conf"
+printf '  %s\n' "$QUIC_QLOG_PREFIX/conf/bench-h3-quic-qlog-on-disk.conf"
+printf '  %s\n' "$QUIC_QLOG_NO_BUFFER_PREFIX/conf/bench-h3-quic-qlog-no-buffer-on-disk.conf"

@@ -25,12 +25,8 @@ bench_ensure_cmd() {
 
 bench_list_scenarios() {
     cat <<'EOF'
-master
-qlog-off
 quic-qlog
-quic-qlog-extended
-http3-qlog
-qlog-on-disk
+quic-qlog-no-buffer
 EOF
 }
 
@@ -69,29 +65,13 @@ bench_load_scenario() {
     local scenario="$2"
 
     case "$scenario" in
-        master)
-            BENCH_SCENARIO_PREFIX="$prefix_root/master"
-            BENCH_SCENARIO_CONFIG="$BENCH_SCENARIO_PREFIX/conf/bench-h3.conf"
-            ;;
-        qlog-off)
-            BENCH_SCENARIO_PREFIX="$prefix_root/quic-qlog"
-            BENCH_SCENARIO_CONFIG="$BENCH_SCENARIO_PREFIX/conf/bench-h3-qlog-off.conf"
-            ;;
         quic-qlog)
             BENCH_SCENARIO_PREFIX="$prefix_root/quic-qlog"
-            BENCH_SCENARIO_CONFIG="$BENCH_SCENARIO_PREFIX/conf/bench-h3-quic-qlog.conf"
+            BENCH_SCENARIO_CONFIG="$BENCH_SCENARIO_PREFIX/conf/bench-h3-quic-qlog-on-disk.conf"
             ;;
-        quic-qlog-extended)
-            BENCH_SCENARIO_PREFIX="$prefix_root/quic-qlog-extended"
-            BENCH_SCENARIO_CONFIG="$BENCH_SCENARIO_PREFIX/conf/bench-h3-quic-qlog-extended.conf"
-            ;;
-        http3-qlog)
-            BENCH_SCENARIO_PREFIX="$prefix_root/http3-qlog"
-            BENCH_SCENARIO_CONFIG="$BENCH_SCENARIO_PREFIX/conf/bench-h3-http3-qlog.conf"
-            ;;
-        qlog-on-disk)
-            BENCH_SCENARIO_PREFIX="$prefix_root/quic-qlog"
-            BENCH_SCENARIO_CONFIG="$BENCH_SCENARIO_PREFIX/conf/bench-h3-qlog-on-disk.conf"
+        quic-qlog-no-buffer)
+            BENCH_SCENARIO_PREFIX="$prefix_root/quic-qlog-no-buffer"
+            BENCH_SCENARIO_CONFIG="$BENCH_SCENARIO_PREFIX/conf/bench-h3-quic-qlog-no-buffer-on-disk.conf"
             ;;
         *)
             return 1

@@ -22,9 +22,9 @@ Usage:
 
 Environment overrides:
   RUN_SET_ID=2026-03-19-manual
-  SCENARIOS=master,qlog-off,quic-qlog,quic-qlog-extended,http3-qlog,qlog-on-disk
+  SCENARIOS=quic-qlog,quic-qlog-no-buffer
   WORKLOADS=small,bulk
-  REPEATS=7
+  REPEATS=3
 
 Server-side:
   PREFIX_ROOT=$HOME/opt/nginx-bench
@@ -217,9 +217,9 @@ if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
 fi
 
 RUN_SET_ID="${RUN_SET_ID:-$(date -u '+%Y-%m-%d-manual')}"
-SCENARIOS="${SCENARIOS:-master,qlog-off,quic-qlog,quic-qlog-extended,http3-qlog,qlog-on-disk}"
+SCENARIOS="${SCENARIOS:-quic-qlog,quic-qlog-no-buffer}"
 WORKLOADS="${WORKLOADS:-small,bulk}"
-REPEATS="${REPEATS:-7}"
+REPEATS="${REPEATS:-3}"
 
 PREFIX_ROOT="${PREFIX_ROOT:-$HOME/opt/nginx-bench}"
 SERVER_RESULTS_ROOT="${SERVER_RESULTS_ROOT:-$PREFIX_ROOT/results/server}"
