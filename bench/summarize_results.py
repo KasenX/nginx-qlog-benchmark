@@ -568,8 +568,20 @@ def main() -> None:
 
         qlog_total_bytes = as_int(server_env.get("qlog_total_bytes"))
         qlog_file_count = as_int(server_env.get("qlog_file_count"))
+        write_syscall_write = as_int(server_env.get("write_syscall_write"))
+        write_syscall_writev = as_int(server_env.get("write_syscall_writev"))
+        write_syscall_pwrite64 = as_int(server_env.get("write_syscall_pwrite64"))
+        write_syscall_pwritev = as_int(server_env.get("write_syscall_pwritev"))
+        write_syscall_pwritev2 = as_int(server_env.get("write_syscall_pwritev2"))
+        write_syscall_total = as_int(server_env.get("write_syscall_total"))
         qlog_bytes_per_request = (
             qlog_total_bytes / total_succeeded if total_succeeded else 0.0
+        )
+        write_syscalls_per_request = (
+            write_syscall_total / total_succeeded if total_succeeded else 0.0
+        )
+        write_syscalls_per_krps = (
+            (write_syscall_total / total_succeeded) * 1000.0 if total_succeeded else 0.0
         )
         qlog_bytes_per_nonzero_file = (
             qlog_total_bytes / qlog_stats["qlog_nonzero_files"]
@@ -614,6 +626,15 @@ def main() -> None:
                 "total_request_failed": total_failed,
                 "total_request_errored": total_errored,
                 "total_request_timeout": total_timeout,
+                "write_syscall_trace": server_env.get("write_syscall_trace", ""),
+                "write_syscall_write": write_syscall_write,
+                "write_syscall_writev": write_syscall_writev,
+                "write_syscall_pwrite64": write_syscall_pwrite64,
+                "write_syscall_pwritev": write_syscall_pwritev,
+                "write_syscall_pwritev2": write_syscall_pwritev2,
+                "write_syscall_total": write_syscall_total,
+                "write_syscalls_per_request": write_syscalls_per_request,
+                "write_syscalls_per_krps": write_syscalls_per_krps,
                 "qlog_file_count": qlog_file_count,
                 "qlog_total_bytes": qlog_total_bytes,
                 "qlog_bytes_per_request": qlog_bytes_per_request,
@@ -640,9 +661,21 @@ def main() -> None:
         )
         cell_groups[key].append(row)
 
+    workload_groups: Dict[tuple, List[Dict[str, object]]] = defaultdict(list)
+    for row in workload_rows:
+        key = (
+            row["scenario"],
+            row["workload"],
+            row["request_paths"],
+            row["clients"],
+            row["streams"],
+        )
+        workload_groups[key].append(row)
+
     cell_rows: List[Dict[str, object]] = []
     for key, rows in sorted(cell_groups.items()):
         scenario, workload, path, clients, streams = key
+        workload_group = workload_groups.get((scenario, workload, path, clients, streams), [])
         cell_rows.append(
             {
                 "scenario": scenario,
@@ -688,6 +721,30 @@ def main() -> None:
                 "median_server_cpu_busy_per_krps": aggregate_median(
                     row["server_cpu_busy_per_krps"] for row in rows
                 ),
+                "median_write_syscall_write": aggregate_median(
+                    as_int(row["write_syscall_write"]) for row in workload_group
+                ),
+                "median_write_syscall_writev": aggregate_median(
+                    as_int(row["write_syscall_writev"]) for row in workload_group
+                ),
+                "median_write_syscall_pwrite64": aggregate_median(
+                    as_int(row["write_syscall_pwrite64"]) for row in workload_group
+                ),
+                "median_write_syscall_pwritev": aggregate_median(
+                    as_int(row["write_syscall_pwritev"]) for row in workload_group
+                ),
+                "median_write_syscall_pwritev2": aggregate_median(
+                    as_int(row["write_syscall_pwritev2"]) for row in workload_group
+                ),
+                "median_write_syscall_total": aggregate_median(
+                    as_int(row["write_syscall_total"]) for row in workload_group
+                ),
+                "median_write_syscalls_per_request": aggregate_median(
+                    float(row["write_syscalls_per_request"]) for row in workload_group
+                ),
+                "median_write_syscalls_per_krps": aggregate_median(
+                    float(row["write_syscalls_per_krps"]) for row in workload_group
+                ),
                 "total_request_succeeded": sum(
                     as_int(row["request_succeeded"]) for row in rows
                 ),
@@ -708,6 +765,12 @@ def main() -> None:
         baseline_cpu_busy = baseline["median_server_cpu_busy_pct"] if baseline else 0.0
         baseline_cpu_per_krps = (
             baseline["median_server_cpu_busy_per_krps"] if baseline else 0.0
+        )
+        baseline_write_total = (
+            baseline["median_write_syscall_total"] if baseline else 0.0
+        )
+        baseline_write_per_request = (
+            baseline["median_write_syscalls_per_request"] if baseline else 0.0
         )
 
         delta_vs_baseline_req_pct = (
@@ -738,6 +801,21 @@ def main() -> None:
             if baseline_cpu_per_krps
             else 0.0
         )
+        delta_vs_baseline_write_total_pct = (
+            ((row["median_write_syscall_total"] - baseline_write_total) / baseline_write_total)
+            * 100.0
+            if baseline_write_total
+            else 0.0
+        )
+        delta_vs_baseline_write_per_request_pct = (
+            (
+                (row["median_write_syscalls_per_request"] - baseline_write_per_request)
+                / baseline_write_per_request
+            )
+            * 100.0
+            if baseline_write_per_request
+            else 0.0
+        )
 
         comparison_rows.append(
             {
@@ -746,6 +824,8 @@ def main() -> None:
                 "delta_request_p95_vs_baseline_pct": delta_vs_baseline_p95_pct,
                 "delta_server_cpu_busy_vs_baseline_pct": delta_vs_baseline_cpu_busy_pct,
                 "delta_server_cpu_busy_per_krps_vs_baseline_pct": delta_vs_baseline_cpu_per_krps_pct,
+                "delta_write_syscall_total_vs_baseline_pct": delta_vs_baseline_write_total_pct,
+                "delta_write_syscalls_per_request_vs_baseline_pct": delta_vs_baseline_write_per_request_pct,
             }
         )
 
@@ -833,6 +913,15 @@ def main() -> None:
             "total_request_failed",
             "total_request_errored",
             "total_request_timeout",
+            "write_syscall_trace",
+            "write_syscall_write",
+            "write_syscall_writev",
+            "write_syscall_pwrite64",
+            "write_syscall_pwritev",
+            "write_syscall_pwritev2",
+            "write_syscall_total",
+            "write_syscalls_per_request",
+            "write_syscalls_per_krps",
             "qlog_file_count",
             "qlog_total_bytes",
             "qlog_bytes_per_request",
@@ -870,6 +959,14 @@ def main() -> None:
             "median_server_cpu_iowait_pct",
             "median_server_cpu_steal_pct",
             "median_server_cpu_busy_per_krps",
+            "median_write_syscall_write",
+            "median_write_syscall_writev",
+            "median_write_syscall_pwrite64",
+            "median_write_syscall_pwritev",
+            "median_write_syscall_pwritev2",
+            "median_write_syscall_total",
+            "median_write_syscalls_per_request",
+            "median_write_syscalls_per_krps",
             "total_request_succeeded",
         ],
     )
@@ -896,11 +993,21 @@ def main() -> None:
             "median_server_cpu_iowait_pct",
             "median_server_cpu_steal_pct",
             "median_server_cpu_busy_per_krps",
+            "median_write_syscall_write",
+            "median_write_syscall_writev",
+            "median_write_syscall_pwrite64",
+            "median_write_syscall_pwritev",
+            "median_write_syscall_pwritev2",
+            "median_write_syscall_total",
+            "median_write_syscalls_per_request",
+            "median_write_syscalls_per_krps",
             "total_request_succeeded",
             "delta_req_per_s_vs_baseline_pct",
             "delta_request_p95_vs_baseline_pct",
             "delta_server_cpu_busy_vs_baseline_pct",
             "delta_server_cpu_busy_per_krps_vs_baseline_pct",
+            "delta_write_syscall_total_vs_baseline_pct",
+            "delta_write_syscalls_per_request_vs_baseline_pct",
         ],
     )
 

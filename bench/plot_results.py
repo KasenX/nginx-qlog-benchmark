@@ -123,6 +123,14 @@ def fmt_percent(value: float) -> str:
     return f"{value:.0f}%"
 
 
+def fmt_syscalls(value: float) -> str:
+    if value >= 1_000_000:
+        return f"{value / 1_000_000:.1f}M"
+    if value >= 1_000:
+        return f"{value / 1_000:.1f}k"
+    return f"{value:.0f}"
+
+
 def parse_hex_color(color: str) -> tuple[float, float, float]:
     color = color.lstrip("#")
     if len(color) != 6:
@@ -817,6 +825,48 @@ def build_total_qlog_bytes_values(
     return labels, grouped_values
 
 
+def build_workload_metric_values(
+    workload_rows: List[Dict[str, str]],
+    metric_column: str,
+) -> tuple[List[str], List[List[SeriesValue]]]:
+    labels = [WORKLOAD_LABELS[w] for w in WORKLOAD_ORDER]
+    grouped_values: List[List[SeriesValue]] = []
+    for workload in WORKLOAD_ORDER:
+        series_values: List[SeriesValue] = []
+        for scenario in SCENARIO_ORDER:
+            values = [
+                float(row[metric_column])
+                for row in workload_rows
+                if row["workload"] == workload and row["scenario"] == scenario
+            ]
+            series_values.append(
+                SeriesValue(
+                    scenario=scenario,
+                    value=float(median(values)) if values else 0.0,
+                    saturated=False,
+                )
+            )
+        grouped_values.append(series_values)
+    return labels, grouped_values
+
+
+def nice_upper_bound(value: float) -> float:
+    if value <= 0:
+        return 1.0
+    magnitude = 10 ** int(len(str(int(value))) - 1)
+    for factor in (1, 2, 5, 10):
+        bound = magnitude * factor
+        if bound >= value:
+            return float(bound)
+    return float(magnitude * 10)
+
+
+def build_ticks(max_value: float, count: int = 5) -> List[float]:
+    upper = nice_upper_bound(max_value)
+    step = upper / count
+    return [step * idx for idx in range(count + 1)]
+
+
 def build_absolute_metric_grouped_values(
     cell_rows: List[Dict[str, str]],
     workload_rows: List[Dict[str, str]],
@@ -977,6 +1027,84 @@ def main() -> None:
         value_formatter=fmt_percent,
     )
 
+    labels, grouped = build_normalized_grouped_values(
+        cell_rows,
+        workload_rows,
+        metric_column="delta_write_syscall_total_vs_baseline_pct",
+    )
+    draw_grouped_bar_chart(
+        PLOTS_DIR / "write_syscalls_total_normalized.svg",
+        categories=labels,
+        grouped_values=grouped,
+        ylabel=f"write-family syscalls (% of {BASELINE_SCENARIO})",
+        y_ticks=[0, 25, 50, 75, 100, 125, 150, 175, 200],
+        y_max=200,
+        scenarios=SCENARIO_ORDER,
+        has_ram_saturation=has_ram_saturation,
+        footnote=None,
+        value_formatter=fmt_percent,
+    )
+
+    labels, grouped = build_normalized_grouped_values(
+        cell_rows,
+        workload_rows,
+        metric_column="delta_write_syscalls_per_request_vs_baseline_pct",
+    )
+    draw_grouped_bar_chart(
+        PLOTS_DIR / "write_syscalls_per_request_normalized.svg",
+        categories=labels,
+        grouped_values=grouped,
+        ylabel=f"write-family syscalls per request (% of {BASELINE_SCENARIO})",
+        y_ticks=[0, 25, 50, 75, 100, 125, 150, 175, 200],
+        y_max=200,
+        scenarios=SCENARIO_ORDER,
+        has_ram_saturation=has_ram_saturation,
+        footnote=None,
+        value_formatter=fmt_percent,
+    )
+
+    labels, grouped = build_workload_metric_values(
+        workload_rows,
+        metric_column="write_syscall_total",
+    )
+    max_total_write_syscalls = max(
+        (series.value for group in grouped for series in group),
+        default=0.0,
+    )
+    draw_grouped_bar_chart(
+        PLOTS_DIR / "write_syscalls_total_absolute.svg",
+        categories=labels,
+        grouped_values=grouped,
+        ylabel="write-family syscalls per run",
+        y_ticks=build_ticks(max_total_write_syscalls),
+        y_max=nice_upper_bound(max_total_write_syscalls),
+        scenarios=SCENARIO_ORDER,
+        has_ram_saturation=has_ram_saturation,
+        footnote=None,
+        value_formatter=fmt_syscalls,
+    )
+
+    labels, grouped = build_workload_metric_values(
+        workload_rows,
+        metric_column="write_syscalls_per_request",
+    )
+    max_write_syscalls_per_request = max(
+        (series.value for group in grouped for series in group),
+        default=0.0,
+    )
+    draw_grouped_bar_chart(
+        PLOTS_DIR / "write_syscalls_per_request_absolute.svg",
+        categories=labels,
+        grouped_values=grouped,
+        ylabel="write-family syscalls per request",
+        y_ticks=build_ticks(max_write_syscalls_per_request),
+        y_max=nice_upper_bound(max_write_syscalls_per_request),
+        scenarios=SCENARIO_ORDER,
+        has_ram_saturation=has_ram_saturation,
+        footnote=None,
+        value_formatter=lambda value: f"{value:.2f}",
+    )
+
     labels, grouped = build_bytes_per_request_values(workload_rows)
     draw_grouped_bar_chart(
         PLOTS_DIR / "qlog_bytes_per_request.svg",
@@ -1026,6 +1154,10 @@ def main() -> None:
         f"- `cpu_busy_normalized.{{svg,pdf}}`: grouped bar chart of median server CPU busy normalized to `{BASELINE_SCENARIO}`",
         "- `cpu_busy_absolute.{svg,pdf}`: grouped bar chart of median absolute server CPU busy percentage",
         f"- `cpu_efficiency_normalized.{{svg,pdf}}`: grouped bar chart of median CPU busy per 1000 req/s normalized to `{BASELINE_SCENARIO}`",
+        f"- `write_syscalls_total_normalized.{{svg,pdf}}`: grouped bar chart of total write-family syscalls normalized to `{BASELINE_SCENARIO}`",
+        f"- `write_syscalls_per_request_normalized.{{svg,pdf}}`: grouped bar chart of write-family syscalls per request normalized to `{BASELINE_SCENARIO}`",
+        "- `write_syscalls_total_absolute.{svg,pdf}`: grouped bar chart of median total write-family syscalls per workload run",
+        "- `write_syscalls_per_request_absolute.{svg,pdf}`: grouped bar chart of median write-family syscalls per successful request",
         "- `qlog_bytes_per_request.{svg,pdf}`: qlog volume per successful request for each qlog-writing scenario",
         "- `qlog_total_bytes.{svg,pdf}`: total qlog volume per workload run for each qlog-writing scenario",
         "- `throughput_repeats.{svg,pdf}`: repeat-level req/s scatter with median markers",

@@ -28,6 +28,8 @@ Environment overrides:
   SAMPLE_INTERVAL=1
   CLEAR_QLOG=1
   STOP_RUNNING=1
+  WRITE_SYSCALL_TRACE=auto
+  WRITE_SYSCALL_SUDO=1
 
 Examples:
   RUN_ID=pilot-001 RUN_SECONDS=75 bench/run_server_measurement.sh quic-qlog
@@ -63,6 +65,42 @@ read_pid_file() {
 
     [[ -f "$pid_file" ]] || return 1
     tr -d '[:space:]' <"$pid_file"
+}
+
+
+list_benchmark_nginx_pids() {
+    local master_pid="${SERVER_PID:-$(read_pid_file "$BENCH_SCENARIO_PID_FILE" || true)}"
+    local child_pid
+
+    if ! is_pid_running "$master_pid"; then
+        return 0
+    fi
+
+    printf '%s\n' "$master_pid"
+
+    while IFS= read -r child_pid; do
+        [[ -n "$child_pid" ]] || continue
+        is_pid_running "$child_pid" || continue
+        printf '%s\n' "$child_pid"
+    done < <(ps -o pid= --ppid "$master_pid" 2>/dev/null || true)
+}
+
+
+join_csv_lines() {
+    awk '
+        NF {
+            if (count > 0) {
+                printf ","
+            }
+            printf "%s", $0
+            count++
+        }
+        END {
+            if (count > 0) {
+                printf "\n"
+            }
+        }
+    '
 }
 
 
@@ -208,6 +246,8 @@ collect_qlog_summary() {
             -exec stat -c '%n %s' {} \; | sort >"$RUN_DIR/qlog-files.txt"
     fi
 
+    collect_write_syscall_summary
+
     {
         printf 'scenario=%s\n' "$SCENARIO"
         printf 'run_id=%s\n' "$RUN_ID"
@@ -222,7 +262,176 @@ collect_qlog_summary() {
         printf 'qlog_dir=%s\n' "${BENCH_SCENARIO_QLOG_DIR:-<disabled>}"
         printf 'qlog_file_count=%s\n' "$qlog_count"
         printf 'qlog_total_bytes=%s\n' "$qlog_bytes"
+        printf 'write_syscall_trace=%s\n' "$WRITE_SYSCALL_TRACE_STATUS"
+        printf 'write_syscall_write=%s\n' "$WRITE_SYSCALL_WRITE"
+        printf 'write_syscall_writev=%s\n' "$WRITE_SYSCALL_WRITEV"
+        printf 'write_syscall_pwrite64=%s\n' "$WRITE_SYSCALL_PWRITE64"
+        printf 'write_syscall_pwritev=%s\n' "$WRITE_SYSCALL_PWRITEV"
+        printf 'write_syscall_pwritev2=%s\n' "$WRITE_SYSCALL_PWRITEV2"
+        printf 'write_syscall_total=%s\n' "$WRITE_SYSCALL_TOTAL"
     } >"$RUN_DIR/summary.env"
+}
+
+
+collect_write_syscall_summary() {
+    local perf_output="$RUN_DIR/write-syscalls.perf-stat.txt"
+    local event
+    local value
+
+    WRITE_SYSCALL_WRITE=0
+    WRITE_SYSCALL_WRITEV=0
+    WRITE_SYSCALL_PWRITE64=0
+    WRITE_SYSCALL_PWRITEV=0
+    WRITE_SYSCALL_PWRITEV2=0
+    WRITE_SYSCALL_TOTAL=0
+
+    [[ -f "$perf_output" ]] || return 0
+
+    while IFS=, read -r value _ event _; do
+        [[ -n "$event" ]] || continue
+        [[ "$value" =~ ^[0-9][0-9]*$ ]] || continue
+
+        case "$event" in
+            syscalls:sys_enter_write)
+                WRITE_SYSCALL_WRITE="$value"
+                ;;
+            syscalls:sys_enter_writev)
+                WRITE_SYSCALL_WRITEV="$value"
+                ;;
+            syscalls:sys_enter_pwrite64)
+                WRITE_SYSCALL_PWRITE64="$value"
+                ;;
+            syscalls:sys_enter_pwritev)
+                WRITE_SYSCALL_PWRITEV="$value"
+                ;;
+            syscalls:sys_enter_pwritev2)
+                WRITE_SYSCALL_PWRITEV2="$value"
+                ;;
+        esac
+    done <"$perf_output"
+
+    WRITE_SYSCALL_TOTAL=$((
+        WRITE_SYSCALL_WRITE +
+        WRITE_SYSCALL_WRITEV +
+        WRITE_SYSCALL_PWRITE64 +
+        WRITE_SYSCALL_PWRITEV +
+        WRITE_SYSCALL_PWRITEV2
+    ))
+
+    if (( WRITE_SYSCALL_TOTAL == 0 )) && grep -qi 'failed\|not supported\|permission\|can.t access trace events' "$perf_output"; then
+        WRITE_SYSCALL_TRACE_STATUS="failed"
+    fi
+}
+
+
+start_write_syscall_collector() {
+    local pid_csv
+    local perf_output="$RUN_DIR/write-syscalls.perf-stat.txt"
+    local perf_stderr="$RUN_DIR/write-syscalls.perf-stat.stderr.txt"
+    local -a perf_cmd
+    local -a pid_args
+    local pid
+
+    WRITE_SYSCALL_TRACE_STATUS="disabled"
+    WRITE_SYSCALL_COLLECTOR_PID=""
+
+    if [[ "$WRITE_SYSCALL_TRACE" == "0" || "$WRITE_SYSCALL_TRACE" == "off" ]]; then
+        return 0
+    fi
+
+    if ! command -v perf >/dev/null 2>&1; then
+        if [[ "$WRITE_SYSCALL_TRACE" == "auto" ]]; then
+            WRITE_SYSCALL_TRACE_STATUS="unavailable"
+            return 0
+        fi
+        bench_die "WRITE_SYSCALL_TRACE=$WRITE_SYSCALL_TRACE requested, but perf is not installed"
+    fi
+
+    if [[ "$WRITE_SYSCALL_SUDO" == "1" && "$EUID" != "0" ]] \
+        && ! command -v sudo >/dev/null 2>&1; then
+        if [[ "$WRITE_SYSCALL_TRACE" == "auto" ]]; then
+            WRITE_SYSCALL_TRACE_STATUS="unavailable"
+            return 0
+        fi
+        bench_die "WRITE_SYSCALL_SUDO=1 requested, but sudo is not installed"
+    fi
+
+    sleep 1
+    pid_csv="$(list_benchmark_nginx_pids | join_csv_lines)"
+    if [[ -z "$pid_csv" ]]; then
+        if [[ "$WRITE_SYSCALL_TRACE" == "auto" ]]; then
+            WRITE_SYSCALL_TRACE_STATUS="no-pids"
+            return 0
+        fi
+        bench_die "failed to resolve nginx pids for write syscall tracing"
+    fi
+
+    IFS=',' read -r -a pid_args_raw <<<"$pid_csv"
+    pid_args=()
+    for pid in "${pid_args_raw[@]}"; do
+        [[ -n "$pid" ]] || continue
+        pid_args+=( -p "$pid" )
+    done
+    if [[ ${#pid_args[@]} -eq 0 ]]; then
+        if [[ "$WRITE_SYSCALL_TRACE" == "auto" ]]; then
+            WRITE_SYSCALL_TRACE_STATUS="no-pids"
+            return 0
+        fi
+        bench_die "failed to build perf pid arguments for write syscall tracing"
+    fi
+
+    bench_log "Starting write syscall collector for nginx pids: $pid_csv"
+    perf_cmd=(perf stat -x, -o "$perf_output" \
+        -e syscalls:sys_enter_write \
+        -e syscalls:sys_enter_writev \
+        -e syscalls:sys_enter_pwrite64 \
+        -e syscalls:sys_enter_pwritev \
+        -e syscalls:sys_enter_pwritev2 \
+        "${pid_args[@]}" -- sleep 1000000)
+    if [[ "$WRITE_SYSCALL_SUDO" == "1" && "$EUID" != "0" ]]; then
+        perf_cmd=(sudo -n "${perf_cmd[@]}")
+    fi
+
+    : >"$perf_stderr"
+    if setsid "${perf_cmd[@]}" </dev/null >/dev/null 2>>"$perf_stderr" & then
+        WRITE_SYSCALL_COLLECTOR_PID=$!
+        sleep 1
+        if ! is_pid_running "$WRITE_SYSCALL_COLLECTOR_PID"; then
+            WRITE_SYSCALL_TRACE_STATUS="failed"
+            wait "$WRITE_SYSCALL_COLLECTOR_PID" 2>/dev/null || true
+            WRITE_SYSCALL_COLLECTOR_PID=""
+            if [[ "$WRITE_SYSCALL_TRACE" == "auto" ]]; then
+                return 0
+            fi
+            bench_die "write syscall collector exited immediately"
+        fi
+
+        WRITE_SYSCALL_TRACE_STATUS="running"
+        printf '%s\n' "$WRITE_SYSCALL_COLLECTOR_PID" >"$RUN_DIR/write-syscalls.pid"
+        printf '%s\n' "$pid_csv" >"$RUN_DIR/write-syscalls.target-pids.txt"
+        printf '%s\n' "$WRITE_SYSCALL_SUDO" >"$RUN_DIR/write-syscalls.sudo-enabled.txt"
+    else
+        if [[ "$WRITE_SYSCALL_TRACE" == "auto" ]]; then
+            WRITE_SYSCALL_TRACE_STATUS="failed"
+            return 0
+        fi
+        bench_die "failed to start write syscall collector"
+    fi
+}
+
+
+stop_write_syscall_collector() {
+    local pid="${WRITE_SYSCALL_COLLECTOR_PID:-}"
+
+    [[ -n "$pid" ]] || return 0
+    is_pid_running "$pid" || return 0
+
+    kill -INT -- "-$pid" 2>/dev/null || kill -INT "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+
+    if [[ "$WRITE_SYSCALL_TRACE_STATUS" == "running" ]]; then
+        WRITE_SYSCALL_TRACE_STATUS="collected"
+    fi
 }
 
 
@@ -269,6 +478,7 @@ write_metadata() {
         printf 'nginx_pid_file=%s\n' "$BENCH_SCENARIO_PID_FILE"
         printf 'listen_port=%s\n' "${BENCH_SCENARIO_LISTEN_PORT:-unknown}"
         printf 'qlog_dir=%s\n' "${BENCH_SCENARIO_QLOG_DIR:-<disabled>}"
+        printf 'write_syscall_trace=%s\n' "$WRITE_SYSCALL_TRACE"
     } >"$RUN_DIR/run.env"
 
     copy_if_exists "$BENCH_SCENARIO_CONFIG" "$RUN_DIR/nginx.conf"
@@ -284,6 +494,7 @@ finish_run() {
     STOP_UTC="$(date -u '+%FT%TZ')"
 
     stop_collectors
+    stop_write_syscall_collector
     stop_nginx
     collect_qlog_summary
 
@@ -338,8 +549,10 @@ TAIL_SECONDS="${TAIL_SECONDS:-5}"
 SAMPLE_INTERVAL="${SAMPLE_INTERVAL:-1}"
 CLEAR_QLOG="${CLEAR_QLOG:-1}"
 STOP_RUNNING="${STOP_RUNNING:-1}"
+WRITE_SYSCALL_TRACE="${WRITE_SYSCALL_TRACE:-auto}"
+WRITE_SYSCALL_SUDO="${WRITE_SYSCALL_SUDO:-1}"
 
-bench_ensure_cmd awk date du find hostname hostnamectl iostat lscpu mpstat sar sed stat
+bench_ensure_cmd awk date du find grep hostname hostnamectl iostat lscpu mpstat sar sed setsid stat
 
 bench_load_scenario "$PREFIX_ROOT" "$SCENARIO" \
     || bench_die "unknown scenario: $SCENARIO"
@@ -350,6 +563,14 @@ START_UTC="$(date -u '+%FT%TZ')"
 STOP_UTC=""
 SERVER_PID=""
 STOP_REQUESTED=0
+WRITE_SYSCALL_TRACE_STATUS="disabled"
+WRITE_SYSCALL_COLLECTOR_PID=""
+WRITE_SYSCALL_WRITE=0
+WRITE_SYSCALL_WRITEV=0
+WRITE_SYSCALL_PWRITE64=0
+WRITE_SYSCALL_PWRITEV=0
+WRITE_SYSCALL_PWRITEV2=0
+WRITE_SYSCALL_TOTAL=0
 
 mkdir -p "$RUN_DIR"
 
@@ -359,6 +580,7 @@ clear_qlog_dir
 trap trap_handler INT TERM
 
 start_nginx
+start_write_syscall_collector
 start_collectors
 
 if ! run_window; then

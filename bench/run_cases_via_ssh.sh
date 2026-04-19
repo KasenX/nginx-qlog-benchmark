@@ -44,6 +44,8 @@ Server-side overrides:
   SAMPLE_INTERVAL=1
   CLEAR_QLOG=1
   STOP_RUNNING=1
+  WRITE_SYSCALL_TRACE=auto
+  WRITE_SYSCALL_SUDO=1
 
 Client-side overrides:
   CLIENT_RESULTS_ROOT=$HOME/bench-results/client
@@ -169,7 +171,10 @@ export TAIL_SECONDS=$(shell_quote "$TAIL_SECONDS")
 export SAMPLE_INTERVAL=$(shell_quote "$SAMPLE_INTERVAL")
 export CLEAR_QLOG=$(shell_quote "$CLEAR_QLOG")
 export STOP_RUNNING=$(shell_quote "$STOP_RUNNING")
-bash bench/run_case_by_index.sh server $(shell_quote "$case_index")
+export WRITE_SYSCALL_TRACE=$(shell_quote "$WRITE_SYSCALL_TRACE")
+export WRITE_SYSCALL_SUDO=$(shell_quote "$WRITE_SYSCALL_SUDO")
+sudo --preserve-env=RUN_SET_ID,SCENARIOS,WORKLOADS,REPEATS,PREFIX_ROOT,SERVER_RESULTS_ROOT,SERVER_RUN_SECONDS,TAIL_SECONDS,SAMPLE_INTERVAL,CLEAR_QLOG,STOP_RUNNING,WRITE_SYSCALL_TRACE,WRITE_SYSCALL_SUDO \
+    bash bench/run_case_by_index.sh server $(shell_quote "$case_index")
 EOF
     ) 2>&1 | tee "$log_path" &
     SERVER_JOB_PID=$!
@@ -317,6 +322,8 @@ TAIL_SECONDS="${TAIL_SECONDS:-0}"
 SAMPLE_INTERVAL="${SAMPLE_INTERVAL:-1}"
 CLEAR_QLOG="${CLEAR_QLOG:-1}"
 STOP_RUNNING="${STOP_RUNNING:-1}"
+WRITE_SYSCALL_TRACE="${WRITE_SYSCALL_TRACE:-auto}"
+WRITE_SYSCALL_SUDO="${WRITE_SYSCALL_SUDO:-1}"
 
 CLIENT_RESULTS_ROOT="${CLIENT_RESULTS_ROOT:-}"
 BASE_URI="${BASE_URI:-https://84.17.61.47:8443}"
