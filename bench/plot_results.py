@@ -39,6 +39,11 @@ QLOG_SCENARIOS = [
     "http3-qlog",
     "qlog-on-disk",
 ]
+QLOG_PLOT_SCENARIOS = [
+    "quic-qlog",
+    "quic-qlog-extended",
+    "http3-qlog",
+]
 SCENARIO_COLORS = {
     "master": "#3b4252",
     "qlog-off": "#5e81ac",
@@ -767,13 +772,13 @@ def build_bytes_per_request_values(
     qlog_rows = [
         row
         for row in workload_rows
-        if row["scenario"] in QLOG_SCENARIOS
+        if row["scenario"] in QLOG_PLOT_SCENARIOS
     ]
     labels = [WORKLOAD_LABELS[w] for w in WORKLOAD_ORDER]
     grouped_values: List[List[SeriesValue]] = []
     for workload in WORKLOAD_ORDER:
         series_values: List[SeriesValue] = []
-        for scenario in QLOG_SCENARIOS:
+        for scenario in QLOG_PLOT_SCENARIOS:
             values = [
                 float(row["qlog_bytes_per_request"])
                 for row in qlog_rows
@@ -800,13 +805,13 @@ def build_total_qlog_bytes_values(
     qlog_rows = [
         row
         for row in workload_rows
-        if row["scenario"] in QLOG_SCENARIOS
+        if row["scenario"] in QLOG_PLOT_SCENARIOS
     ]
     labels = [WORKLOAD_LABELS[w] for w in WORKLOAD_ORDER]
     grouped_values: List[List[SeriesValue]] = []
     for workload in WORKLOAD_ORDER:
         series_values: List[SeriesValue] = []
-        for scenario in QLOG_SCENARIOS:
+        for scenario in QLOG_PLOT_SCENARIOS:
             values = [
                 float(row["qlog_total_bytes"])
                 for row in qlog_rows
@@ -995,7 +1000,7 @@ def main() -> None:
         ylabel="qlog bytes per request",
         y_ticks=[0, 100_000, 200_000, 300_000, 400_000],
         y_max=400_000,
-        scenarios=QLOG_SCENARIOS,
+        scenarios=QLOG_PLOT_SCENARIOS,
         has_ram_saturation=has_ram_saturation,
         footnote=None,
         value_formatter=fmt_bytes_per_request,
@@ -1009,7 +1014,7 @@ def main() -> None:
         ylabel="total qlog bytes",
         y_ticks=[0, 5_000_000_000, 10_000_000_000, 15_000_000_000, 20_000_000_000, 25_000_000_000],
         y_max=25_000_000_000,
-        scenarios=QLOG_SCENARIOS,
+        scenarios=QLOG_PLOT_SCENARIOS,
         has_ram_saturation=has_ram_saturation,
         footnote=None,
         value_formatter=fmt_bytes,
