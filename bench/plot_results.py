@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import html
 import os
-from math import cos, pi, sin
+from math import ceil, cos, floor, log10, pi, sin
 from statistics import median
 from dataclasses import dataclass
 from pathlib import Path
@@ -121,6 +121,12 @@ def fmt_req_per_s(value: float) -> str:
     return f"{value:.0f}"
 
 
+def fmt_req_per_s_scaled(value: float) -> str:
+    if value >= 1000:
+        return fmt_compact_scaled(value, 1000, "k")
+    return f"{value:.0f}"
+
+
 def fmt_compact_scaled(value: float, divisor: float, suffix: str) -> str:
     scaled = value / divisor
     if scaled.is_integer():
@@ -148,6 +154,36 @@ def fmt_bytes(value: float) -> str:
 
 def fmt_percent(value: float) -> str:
     return f"{value:.0f}%"
+
+
+def fmt_milliseconds_from_us(value: float) -> str:
+    return f"{value / 1000:.0f} ms"
+
+
+def nice_tick_step(raw_step: float) -> float:
+    if raw_step <= 0:
+        return 1.0
+    magnitude = 10 ** floor(log10(raw_step))
+    residual = raw_step / magnitude
+    if residual <= 1:
+        nice = 1
+    elif residual <= 2:
+        nice = 2
+    elif residual <= 5:
+        nice = 5
+    else:
+        nice = 10
+    return nice * magnitude
+
+
+def build_axis_ticks(max_value: float, tick_count: int = 5) -> tuple[List[float], float]:
+    if max_value <= 0:
+        return [0.0, 1.0], 1.0
+    step = nice_tick_step(max_value / tick_count)
+    y_max = step * ceil(max_value / step)
+    tick_total = int(round(y_max / step))
+    ticks = [step * idx for idx in range(tick_total + 1)]
+    return ticks, y_max
 
 
 def parse_hex_color(color: str) -> tuple[float, float, float]:
@@ -911,6 +947,14 @@ def build_absolute_metric_grouped_values(
     return labels, grouped_values
 
 
+def max_grouped_value(grouped_values: Sequence[Sequence[SeriesValue]]) -> float:
+    return max(
+        series.value
+        for category_values in grouped_values
+        for series in category_values
+    )
+
+
 def build_repeat_values(
     case_rows: List[Dict[str, str]]
 ) -> tuple[List[str], Dict[tuple, List[float]]]:
@@ -963,6 +1007,25 @@ def main() -> None:
         value_formatter=fmt_percent,
     )
 
+    labels, grouped = build_absolute_metric_grouped_values(
+        cell_rows,
+        workload_rows,
+        metric_column="median_req_per_s",
+    )
+    y_ticks, y_max = build_axis_ticks(max_grouped_value(grouped))
+    draw_grouped_bar_chart(
+        PLOTS_DIR / "throughput_absolute.svg",
+        categories=labels,
+        grouped_values=grouped,
+        ylabel="Throughput (req/s)",
+        y_ticks=y_ticks,
+        y_max=y_max,
+        scenarios=SCENARIO_ORDER,
+        has_ram_saturation=has_ram_saturation,
+        footnote=None,
+        value_formatter=fmt_req_per_s_scaled,
+    )
+
     labels, grouped = build_normalized_grouped_values(
         cell_rows,
         workload_rows,
@@ -979,6 +1042,25 @@ def main() -> None:
         has_ram_saturation=has_ram_saturation,
         footnote=None,
         value_formatter=fmt_percent,
+    )
+
+    labels, grouped = build_absolute_metric_grouped_values(
+        cell_rows,
+        workload_rows,
+        metric_column="median_request_p95_us",
+    )
+    y_ticks, y_max = build_axis_ticks(max_grouped_value(grouped))
+    draw_grouped_bar_chart(
+        PLOTS_DIR / "latency_p95_absolute.svg",
+        categories=labels,
+        grouped_values=grouped,
+        ylabel="p95 latency (ms)",
+        y_ticks=y_ticks,
+        y_max=y_max,
+        scenarios=SCENARIO_ORDER,
+        has_ram_saturation=has_ram_saturation,
+        footnote=None,
+        value_formatter=fmt_milliseconds_from_us,
     )
 
     labels, grouped = build_normalized_grouped_values(
@@ -1035,6 +1117,25 @@ def main() -> None:
         value_formatter=fmt_percent,
     )
 
+    labels, grouped = build_absolute_metric_grouped_values(
+        cell_rows,
+        workload_rows,
+        metric_column="median_server_cpu_busy_per_krps",
+    )
+    y_ticks, y_max = build_axis_ticks(max_grouped_value(grouped))
+    draw_grouped_bar_chart(
+        PLOTS_DIR / "cpu_efficiency_absolute.svg",
+        categories=labels,
+        grouped_values=grouped,
+        ylabel="CPU busy per 1000 req/s",
+        y_ticks=y_ticks,
+        y_max=y_max,
+        scenarios=SCENARIO_ORDER,
+        has_ram_saturation=has_ram_saturation,
+        footnote=None,
+        value_formatter=fmt_number,
+    )
+
     labels, grouped = build_bytes_per_request_values(workload_rows)
     draw_grouped_bar_chart(
         PLOTS_DIR / "qlog_bytes_per_request.svg",
@@ -1080,10 +1181,13 @@ def main() -> None:
         "# Generated Plots",
         "",
         "- `throughput_normalized.{svg,pdf}`: grouped bar chart of median request rate normalized to `master`",
+        "- `throughput_absolute.{svg,pdf}`: grouped bar chart of median absolute request rate",
         "- `latency_p95_normalized.{svg,pdf}`: grouped bar chart of median p95 latency normalized to `master`",
+        "- `latency_p95_absolute.{svg,pdf}`: grouped bar chart of median absolute p95 latency",
         "- `cpu_busy_normalized.{svg,pdf}`: grouped bar chart of median server CPU busy normalized to `master`",
         "- `cpu_busy_absolute.{svg,pdf}`: grouped bar chart of median absolute server CPU busy percentage",
         "- `cpu_efficiency_normalized.{svg,pdf}`: grouped bar chart of median CPU busy per 1000 req/s normalized to `master`",
+        "- `cpu_efficiency_absolute.{svg,pdf}`: grouped bar chart of median absolute CPU busy per 1000 req/s",
         "- `qlog_bytes_per_request.{svg,pdf}`: qlog volume per successful request for each qlog-writing scenario",
         "- `qlog_total_bytes.{svg,pdf}`: total qlog volume per workload run for each qlog-writing scenario",
         "- `throughput_repeats.{svg,pdf}`: repeat-level req/s scatter with median markers",
