@@ -64,6 +64,11 @@ WORKLOAD_SHORT = {
 SERIF_FONT_STACK = (
     '"TeX Gyre Termes", "Nimbus Roman No9 L", "Times New Roman", Times, serif'
 )
+AXIS_FONT_SIZE = 20
+LEGEND_FONT_SIZE = 20
+VALUE_FONT_SIZE = 20
+LEGEND_SWATCH_WIDTH = 16
+LEGEND_SWATCH_HEIGHT = 12
 
 
 @dataclass
@@ -116,21 +121,28 @@ def fmt_req_per_s(value: float) -> str:
     return f"{value:.0f}"
 
 
+def fmt_compact_scaled(value: float, divisor: float, suffix: str) -> str:
+    scaled = value / divisor
+    if scaled.is_integer():
+        return f"{scaled:.0f} {suffix}"
+    return f"{scaled:.1f} {suffix}"
+
+
 def fmt_bytes_per_request(value: float) -> str:
     if value >= 1_000_000:
-        return f"{value / 1_000_000:.1f} MB"
+        return fmt_compact_scaled(value, 1_000_000, "MB")
     if value >= 1_000:
-        return f"{value / 1_000:.1f} kB"
+        return fmt_compact_scaled(value, 1_000, "kB")
     return f"{value:.0f} B"
 
 
 def fmt_bytes(value: float) -> str:
     if value >= 1_000_000_000:
-        return f"{value / 1_000_000_000:.1f} GB"
+        return fmt_compact_scaled(value, 1_000_000_000, "GB")
     if value >= 1_000_000:
-        return f"{value / 1_000_000:.1f} MB"
+        return fmt_compact_scaled(value, 1_000_000, "MB")
     if value >= 1_000:
-        return f"{value / 1_000:.1f} kB"
+        return fmt_compact_scaled(value, 1_000, "kB")
     return f"{value:.0f} B"
 
 
@@ -279,10 +291,11 @@ class PdfCanvas:
         rotate_deg: float | None = None,
         baseline: str = "alphabetic",
     ) -> None:
+        anchor_offset = 0.0
         if anchor == "middle":
-            x -= estimate_text_width(text, font_size, bold=bold) / 2.0
+            anchor_offset = estimate_text_width(text, font_size, bold=bold) / 2.0
         elif anchor == "end":
-            x -= estimate_text_width(text, font_size, bold=bold)
+            anchor_offset = estimate_text_width(text, font_size, bold=bold)
 
         baseline_offset = 0.0
         if baseline == "middle":
@@ -292,11 +305,14 @@ class PdfCanvas:
         font_name = "/F2" if bold else "/F1"
         rgb = self._rgb(color)
         if rotate_deg is None:
+            x -= anchor_offset
             matrix = f"1 0 0 1 {x:.2f} {y_pdf:.2f}"
         else:
             radians = rotate_deg * pi / 180.0
             c = cos(radians)
             s = sin(radians)
+            x -= anchor_offset * c
+            y_pdf -= anchor_offset * s
             matrix = f"{c:.5f} {s:.5f} {-s:.5f} {c:.5f} {x:.2f} {y_pdf:.2f}"
         self.commands.append(
             "q "
@@ -383,13 +399,13 @@ def svg_header(width: int, height: int) -> List[str]:
         f'viewBox="0 0 {width} {height}" role="img">',
         '<defs>',
         '<style>',
-        f'.axis {{ font: 12px {SERIF_FONT_STACK}; fill: #444; }}',
+        f'.axis {{ font: {AXIS_FONT_SIZE}px {SERIF_FONT_STACK}; fill: #444; }}',
         '.tick { stroke: #c7c7c7; stroke-width: 1; }',
         '.grid { stroke: #ececec; stroke-width: 1; }',
-        f'.legend {{ font: 12px {SERIF_FONT_STACK}; fill: #333; }}',
+        f'.legend {{ font: {LEGEND_FONT_SIZE}px {SERIF_FONT_STACK}; fill: #333; }}',
         f'.note {{ font: 12px {SERIF_FONT_STACK}; fill: #555; }}',
         f'.label {{ font: 11px {SERIF_FONT_STACK}; fill: #333; }}',
-        f'.value {{ font: 11px {SERIF_FONT_STACK}; fill: #333; }}',
+        f'.value {{ font: {VALUE_FONT_SIZE}px {SERIF_FONT_STACK}; fill: #333; }}',
         '</style>',
         '<pattern id="sat-stripe" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">',
         '<rect width="6" height="6" fill="rgba(255,255,255,0)"/>',
@@ -408,14 +424,15 @@ def add_legend(
 ) -> None:
     for idx, scenario in enumerate(scenarios):
         yy = y + idx * 22
+        swatch_y = yy - LEGEND_SWATCH_HEIGHT / 2
         color = SCENARIO_COLORS[scenario]
         label = scenario_label(scenario, has_ram_saturation)
         lines.append(
-            f'<rect x="{x}" y="{yy - 10}" width="16" height="12" rx="2" fill="{color}" />'
+            f'<rect x="{x}" y="{swatch_y}" width="{LEGEND_SWATCH_WIDTH}" height="{LEGEND_SWATCH_HEIGHT}" rx="2" fill="{color}" />'
         )
         if scenario in RAM_QLOG_SCENARIOS and has_ram_saturation:
             lines.append(
-                f'<rect x="{x}" y="{yy - 10}" width="16" height="12" rx="2" fill="url(#sat-stripe)" />'
+                f'<rect x="{x}" y="{swatch_y}" width="{LEGEND_SWATCH_WIDTH}" height="{LEGEND_SWATCH_HEIGHT}" rx="2" fill="url(#sat-stripe)" />'
             )
         lines.append(
             f'<text class="legend" x="{x + 24}" y="{yy}" dominant-baseline="middle">{escape(label)}</text>'
@@ -433,10 +450,10 @@ def draw_grouped_bar_chart(
     has_ram_saturation: bool = False,
     footnote: str | None = None,
     value_formatter=fmt_number,
+    margin_left: int = 110,
 ) -> None:
     width = 1280
     height = 760
-    margin_left = 90
     margin_right = 220
     margin_top = 38
     margin_bottom = 170
@@ -463,7 +480,7 @@ def draw_grouped_bar_chart(
             plot_x0 - 12,
             y + 4,
             value_formatter(tick),
-            font_size=12,
+            font_size=AXIS_FONT_SIZE,
             color="#444444",
             anchor="end",
         )
@@ -471,7 +488,7 @@ def draw_grouped_bar_chart(
     lines.append(f'<line class="tick" x1="{plot_x0}" y1="{plot_y1}" x2="{plot_x1}" y2="{plot_y1}" />')
     lines.append(f'<line class="tick" x1="{plot_x0}" y1="{plot_y0}" x2="{plot_x0}" y2="{plot_y1}" />')
     lines.append(
-        f'<text class="axis" x="28" y="{plot_y0 + plot_height / 2}" transform="rotate(-90 28 {plot_y0 + plot_height / 2})">{escape(ylabel)}</text>'
+        f'<text class="axis" x="28" y="{plot_y0 + plot_height / 2}" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 28 {plot_y0 + plot_height / 2})">{escape(ylabel)}</text>'
     )
     pdf.line(plot_x0, plot_y1, plot_x1, plot_y1, color="#c7c7c7", width=1)
     pdf.line(plot_x0, plot_y0, plot_x0, plot_y1, color="#c7c7c7", width=1)
@@ -479,8 +496,9 @@ def draw_grouped_bar_chart(
         28,
         plot_y0 + plot_height / 2,
         ylabel,
-        font_size=12,
+        font_size=AXIS_FONT_SIZE,
         color="#444444",
+        anchor="middle",
         rotate_deg=90,
         baseline="middle",
     )
@@ -494,7 +512,7 @@ def draw_grouped_bar_chart(
             gx + bar_band / 2,
             plot_y1 + 48,
             category,
-            font_size=12,
+            font_size=AXIS_FONT_SIZE,
             color="#444444",
             anchor="middle",
         )
@@ -526,7 +544,7 @@ def draw_grouped_bar_chart(
                     bar_x + (bar_width - 4) / 2,
                     max(plot_y0 + 12, bar_y - 8),
                     "*",
-                    font_size=11,
+                    font_size=VALUE_FONT_SIZE,
                     color="#333333",
                     anchor="middle",
                 )
@@ -534,15 +552,27 @@ def draw_grouped_bar_chart(
     add_legend(lines, plot_x1 + 32, plot_y0 + 20, scenarios, has_ram_saturation)
     for idx, scenario in enumerate(scenarios):
         yy = plot_y0 + 20 + idx * 22
+        swatch_y = yy - LEGEND_SWATCH_HEIGHT / 2
         label = scenario_label(scenario, has_ram_saturation)
-        pdf.rect(plot_x1 + 32, yy - 10, 16, 12, fill=SCENARIO_COLORS[scenario])
+        pdf.rect(
+            plot_x1 + 32,
+            swatch_y,
+            LEGEND_SWATCH_WIDTH,
+            LEGEND_SWATCH_HEIGHT,
+            fill=SCENARIO_COLORS[scenario],
+        )
         if scenario in RAM_QLOG_SCENARIOS and has_ram_saturation:
-            pdf.striped_rect(plot_x1 + 32, yy - 10, 16, 12)
+            pdf.striped_rect(
+                plot_x1 + 32,
+                swatch_y,
+                LEGEND_SWATCH_WIDTH,
+                LEGEND_SWATCH_HEIGHT,
+            )
         pdf.text(
             plot_x1 + 56,
             yy,
             label,
-            font_size=12,
+            font_size=LEGEND_FONT_SIZE,
             color="#333333",
             baseline="middle",
         )
@@ -569,7 +599,7 @@ def draw_dot_plot(
 ) -> None:
     width = 1280
     height = 760
-    margin_left = 90
+    margin_left = 110
     margin_right = 220
     margin_top = 38
     margin_bottom = 170
@@ -596,7 +626,7 @@ def draw_dot_plot(
             plot_x0 - 12,
             y + 4,
             fmt_req_per_s(tick),
-            font_size=12,
+            font_size=AXIS_FONT_SIZE,
             color="#444444",
             anchor="end",
         )
@@ -604,7 +634,7 @@ def draw_dot_plot(
     lines.append(f'<line class="tick" x1="{plot_x0}" y1="{plot_y1}" x2="{plot_x1}" y2="{plot_y1}" />')
     lines.append(f'<line class="tick" x1="{plot_x0}" y1="{plot_y0}" x2="{plot_x0}" y2="{plot_y1}" />')
     lines.append(
-        f'<text class="axis" x="28" y="{plot_y0 + plot_height / 2}" transform="rotate(-90 28 {plot_y0 + plot_height / 2})">{escape(ylabel)}</text>'
+        f'<text class="axis" x="28" y="{plot_y0 + plot_height / 2}" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 28 {plot_y0 + plot_height / 2})">{escape(ylabel)}</text>'
     )
     pdf.line(plot_x0, plot_y1, plot_x1, plot_y1, color="#c7c7c7", width=1)
     pdf.line(plot_x0, plot_y0, plot_x0, plot_y1, color="#c7c7c7", width=1)
@@ -612,8 +642,9 @@ def draw_dot_plot(
         28,
         plot_y0 + plot_height / 2,
         ylabel,
-        font_size=12,
+        font_size=AXIS_FONT_SIZE,
         color="#444444",
+        anchor="middle",
         rotate_deg=90,
         baseline="middle",
     )
@@ -627,7 +658,7 @@ def draw_dot_plot(
             gx + scenario_band / 2,
             plot_y1 + 48,
             category,
-            font_size=12,
+            font_size=AXIS_FONT_SIZE,
             color="#444444",
             anchor="middle",
         )
@@ -670,15 +701,27 @@ def draw_dot_plot(
     add_legend(lines, plot_x1 + 32, plot_y0 + 20, scenarios, has_ram_saturation)
     for idx, scenario in enumerate(scenarios):
         yy = plot_y0 + 20 + idx * 22
+        swatch_y = yy - LEGEND_SWATCH_HEIGHT / 2
         label = scenario_label(scenario, has_ram_saturation)
-        pdf.rect(plot_x1 + 32, yy - 10, 16, 12, fill=SCENARIO_COLORS[scenario])
+        pdf.rect(
+            plot_x1 + 32,
+            swatch_y,
+            LEGEND_SWATCH_WIDTH,
+            LEGEND_SWATCH_HEIGHT,
+            fill=SCENARIO_COLORS[scenario],
+        )
         if scenario in RAM_QLOG_SCENARIOS and has_ram_saturation:
-            pdf.striped_rect(plot_x1 + 32, yy - 10, 16, 12)
+            pdf.striped_rect(
+                plot_x1 + 32,
+                swatch_y,
+                LEGEND_SWATCH_WIDTH,
+                LEGEND_SWATCH_HEIGHT,
+            )
         pdf.text(
             plot_x1 + 56,
             yy,
             label,
-            font_size=12,
+            font_size=LEGEND_FONT_SIZE,
             color="#333333",
             baseline="middle",
         )
